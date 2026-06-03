@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm -v)",
+      "Bash(git --version)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(git config *)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git commit -q -m 'ระบบอัปโหลดเกียรติบัตรครู \\(Next.js + Supabase\\) *)",
+      "Bash(git branch *)"
+    ]
+  }
+}
