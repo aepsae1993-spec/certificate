@@ -72,9 +72,12 @@ export async function POST(req: NextRequest) {
       hours = n;
     }
 
-    const ext = file.name.includes(".") ? file.name.split(".").pop() : "bin";
+    // ใช้ลำดับครูเป็นชื่อโฟลเดอร์ (ASCII) เพราะ Supabase Storage ไม่รองรับ key ภาษาไทย/เว้นวรรค
+    const rawExt = file.name.includes(".") ? file.name.split(".").pop() : "bin";
+    const ext = (rawExt || "bin").toLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
+    const teacherIdx = TEACHERS.indexOf(teacher);
     const safeName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    const filePath = `${teacher}/${safeName}`;
+    const filePath = `teacher-${teacherIdx}/${safeName}`;
 
     const arrayBuffer = await file.arrayBuffer();
 
