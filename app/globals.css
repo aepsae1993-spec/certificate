@@ -372,3 +372,124 @@ table.cert-table tbody tr:last-child td {
   font-size: 0.82rem;
   margin-top: 12px;
 }
+
+/* ---------- Success overlay (3D) ---------- */
+.success-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 9, 12, 0.6);
+  backdrop-filter: blur(4px);
+  perspective: 900px;
+  cursor: pointer;
+  animation: overlayIn 0.25s ease;
+}
+
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.success-modal {
+  text-align: center;
+  padding: 38px 46px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #20232b, #15171d);
+  border: 1px solid var(--border);
+  box-shadow:
+    0 30px 70px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(212, 175, 55, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transform-style: preserve-3d;
+  animation:
+    pop3d 0.7s cubic-bezier(0.22, 1.2, 0.36, 1) forwards,
+    float3d 3s ease-in-out 0.7s infinite;
+}
+
+@keyframes pop3d {
+  0% {
+    opacity: 0;
+    transform: rotateX(-75deg) translateY(60px) scale(0.7);
+  }
+  60% {
+    opacity: 1;
+    transform: rotateX(14deg) translateY(0) scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: rotateX(0deg) scale(1);
+  }
+}
+
+@keyframes float3d {
+  0%, 100% { transform: translateY(0) rotateX(0deg); }
+  50% { transform: translateY(-8px) rotateX(4deg); }
+}
+
+.success-check {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+
+.success-check svg {
+  filter: drop-shadow(0 6px 14px rgba(212, 175, 55, 0.35));
+}
+
+.sc-circle {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 3;
+  stroke-dasharray: 151;
+  stroke-dashoffset: 151;
+  animation: drawCircle 0.6s ease 0.2s forwards;
+}
+
+.sc-tick {
+  fill: none;
+  stroke: var(--gold-light);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  animation: drawTick 0.4s ease 0.7s forwards;
+}
+
+@keyframes drawCircle {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes drawTick {
+  to { stroke-dashoffset: 0; }
+}
+
+.success-text {
+  font-family: "Pridi", "Sarabun", serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  background: linear-gradient(180deg, var(--gold-light), var(--gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.success-sub {
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin-top: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .success-modal {
+    animation: overlayIn 0.2s ease forwards;
+  }
+  .sc-circle,
+  .sc-tick {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}

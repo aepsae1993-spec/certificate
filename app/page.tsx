@@ -37,6 +37,7 @@ export default function Home() {
   const [hours, setHours] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [success, setSuccess] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(
     null
   );
@@ -104,7 +105,9 @@ export default function Home() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "อัปโหลดไม่สำเร็จ");
 
-      setMessage({ type: "success", text: "อัปโหลดเกียรติบัตรสำเร็จ ✅" });
+      setMessage(null);
+      setSuccess(true);
+      window.setTimeout(() => setSuccess(false), 2600);
       setTitle("");
       setEventDate("");
       setOrganizer("");
@@ -148,6 +151,26 @@ export default function Home() {
 
   return (
     <div className="container">
+      {success && (
+        <div
+          className="success-overlay"
+          role="status"
+          aria-live="polite"
+          onClick={() => setSuccess(false)}
+        >
+          <div className="success-modal">
+            <div className="success-check">
+              <svg viewBox="0 0 52 52" width="64" height="64" aria-hidden="true">
+                <circle className="sc-circle" cx="26" cy="26" r="24" />
+                <path className="sc-tick" d="M14 27 l8 8 l16 -18" />
+              </svg>
+            </div>
+            <div className="success-text">อัปโหลดเกียรติบัตรสำเร็จ</div>
+            <div className="success-sub">บันทึกเข้าระบบเรียบร้อยแล้ว</div>
+          </div>
+        </div>
+      )}
+
       <header className="header">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img className="logo" src="/logo.png" alt="ตราโรงเรียน" />
