@@ -19,7 +19,8 @@
       "Bash(mkdir -p public)",
       "Bash(curl -sL \"https://drive.google.com/uc?export=download&id=1uUCsDX-9gbfzNj_e1TTAdyq6KBar6SWf\" -o public/logo.png)",
       "Bash(file public/logo.png)",
-      "Bash(git commit -q -m 'ปรับ UI ธีม dark gold, เพิ่มโลโก้, แสดงแบบตาราง, สรุปชั่วโมงรวมต่อคน *)"
+      "Bash(git commit -q -m 'ปรับ UI ธีม dark gold, เพิ่มโลโก้, แสดงแบบตาราง, สรุปชั่วโมงรวมต่อคน *)",
+      "Bash(git commit -q -m 'ไม่โหลดรายการจนกว่าจะเลือกชื่อครูก่อน *)"
     ]
   }
 }

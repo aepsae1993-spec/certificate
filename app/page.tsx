@@ -66,6 +66,11 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    // ยังไม่โหลดจนกว่าจะเลือกครู
+    if (!filterTeacher) {
+      setItems([]);
+      return;
+    }
     loadList(filterTeacher);
   }, [filterTeacher, loadList]);
 
@@ -108,8 +113,9 @@ export default function Home() {
       const fileInput = document.getElementById("file-input") as HTMLInputElement | null;
       if (fileInput) fileInput.value = "";
 
-      if (!filterTeacher || filterTeacher === teacher) {
-        loadList(filterTeacher);
+      // หลังอัปโหลด ให้แสดงรายการของครูคนที่เพิ่งอัป
+      if (filterTeacher === teacher) {
+        loadList(teacher);
       } else {
         setFilterTeacher(teacher);
       }
@@ -243,7 +249,7 @@ export default function Home() {
               value={filterTeacher}
               onChange={(e) => setFilterTeacher(e.target.value)}
             >
-              <option value="">— ครูทั้งหมด —</option>
+              <option value="">— เลือกชื่อครู —</option>
               {TEACHERS.map((t) => (
                 <option key={t} value={t}>
                   {t}
@@ -253,22 +259,26 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="summary">
-          <div className="stat">
-            <div className="label">{filterTeacher || "ครูทั้งหมด"}</div>
-            <div className="value">
-              {items.length} <small>รายการ</small>
+        {!filterTeacher ? (
+          <p className="empty">กรุณาเลือกชื่อครูเพื่อดูทะเบียนเกียรติบัตร</p>
+        ) : (
+          <>
+            <div className="summary">
+              <div className="stat">
+                <div className="label">{filterTeacher}</div>
+                <div className="value">
+                  {items.length} <small>รายการ</small>
+                </div>
+              </div>
+              <div className="stat">
+                <div className="label">รวมจำนวนชั่วโมงการอบรม</div>
+                <div className="value">
+                  {totalHours.toLocaleString("th-TH")} <small>ชั่วโมง</small>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="stat">
-            <div className="label">รวมจำนวนชั่วโมงการอบรม</div>
-            <div className="value">
-              {totalHours.toLocaleString("th-TH")} <small>ชั่วโมง</small>
-            </div>
-          </div>
-        </div>
 
-        {loading ? (
+            {loading ? (
           <p className="empty">กำลังโหลด...</p>
         ) : items.length === 0 ? (
           <p className="empty">ยังไม่มีเกียรติบัตร</p>
@@ -327,6 +337,8 @@ export default function Home() {
               </tfoot>
             </table>
           </div>
+            )}
+          </>
         )}
       </section>
 
