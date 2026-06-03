@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { TEACHERS } from "@/lib/teachers";
 
 type Certificate = {
@@ -15,24 +15,14 @@ type Certificate = {
   created_at: string;
 };
 
+// วันที่แบบสั้น เช่น "18 มิ.ย. 68" (พ.ศ.)
 function formatEventDate(iso: string | null) {
-  if (!iso) return null;
+  if (!iso) return "-";
   try {
     return new Date(iso + "T00:00:00").toLocaleDateString("th-TH", {
       day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
-  } catch {
-    return iso;
-  }
-}
-
-function formatDate(iso: string) {
-  try {
-    return new Date(iso).toLocaleString("th-TH", {
-      dateStyle: "medium",
-      timeStyle: "short",
+      month: "short",
+      year: "2-digit",
     });
   } catch {
     return iso;
@@ -79,6 +69,14 @@ export default function Home() {
     loadList(filterTeacher);
   }, [filterTeacher, loadList]);
 
+  const totalHours = useMemo(
+    () => items.reduce((sum, c) => sum + (c.hours || 0), 0),
+    [items]
+  );
+
+  // เมื่อดูทั้งหมด ให้แสดงคอลัมน์ชื่อครูเพิ่ม
+  const showTeacherColumn = !filterTeacher;
+
   async function handleUpload(e: React.FormEvent) {
     e.preventDefault();
     setMessage(null);
@@ -107,10 +105,9 @@ export default function Home() {
       setOrganizer("");
       setHours("");
       setFile(null);
-      (document.getElementById("file-input") as HTMLInputElement | null)?.value &&
-        ((document.getElementById("file-input") as HTMLInputElement).value = "");
+      const fileInput = document.getElementById("file-input") as HTMLInputElement | null;
+      if (fileInput) fileInput.value = "";
 
-      // ถ้ากำลังกรองครูคนนี้ หรือดูทั้งหมด ให้รีโหลด
       if (!filterTeacher || filterTeacher === teacher) {
         loadList(filterTeacher);
       } else {
@@ -141,11 +138,16 @@ export default function Home() {
     }
   }
 
+  const colCount = showTeacherColumn ? 7 : 6;
+
   return (
     <div className="container">
       <header className="header">
-        <h1>🏅 ระบบอัปโหลดเกียรติบัตรครู</h1>
-        <p>เลือกชื่อของคุณ แล้วอัปโหลดไฟล์เกียรติบัตร (PDF หรือรูปภาพ)</p>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="logo" src="/logo.png" alt="ตราโรงเรียน" />
+        <h1>ระบบจัดเก็บเกียรติบัตรครู</h1>
+        <p className="subtitle">โรงเรียนวัดบางขุด (อุ่นพิทยาคาร)</p>
+        <div className="divider" />
       </header>
 
       {message && <div className={`alert ${message.type}`}>{message.text}</div>}
@@ -170,11 +172,11 @@ export default function Home() {
           </div>
 
           <div className="field">
-            <label htmlFor="title">ชื่อเกียรติบัตร / หัวข้อ</label>
+            <label htmlFor="title">ชื่อหลักสูตร / โครงการ / กิจกรรม</label>
             <input
               id="title"
               type="text"
-              placeholder="เช่น อบรมหลักสูตรการสอนเชิงรุก ปี 2567"
+              placeholder="เช่น โครงการบ้านนักวิทยาศาสตร์น้อย"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
@@ -195,7 +197,7 @@ export default function Home() {
             <input
               id="organizer"
               type="text"
-              placeholder="เช่น สพฐ. / มหาวิทยาลัย / หน่วยงานต้นสังกัด"
+              placeholder="เช่น สำนักงานเขตพื้นที่การศึกษาประถมศึกษาสมุทรสาคร"
               value={organizer}
               onChange={(e) => setOrganizer(e.target.value)}
             />
@@ -225,23 +227,23 @@ export default function Home() {
           </div>
 
           <button className="btn" type="submit" disabled={uploading}>
-            {uploading ? "กำลังอัปโหลด..." : "อัปโหลด"}
+            {uploading ? "กำลังอัปโหลด..." : "อัปโหลดเกียรติบัตร"}
           </button>
         </form>
       </section>
 
       <section className="card">
-        <h2>เกียรติบัตรที่อัปโหลดแล้ว</h2>
+        <h2>ทะเบียนเกียรติบัตร</h2>
 
         <div className="toolbar">
           <div className="field">
-            <label htmlFor="filter">กรองตามชื่อครู</label>
+            <label htmlFor="filter">เลือกดูตามชื่อครู</label>
             <select
               id="filter"
               value={filterTeacher}
               onChange={(e) => setFilterTeacher(e.target.value)}
             >
-              <option value="">— ทั้งหมด —</option>
+              <option value="">— ครูทั้งหมด —</option>
               {TEACHERS.map((t) => (
                 <option key={t} value={t}>
                   {t}
@@ -251,57 +253,84 @@ export default function Home() {
           </div>
         </div>
 
+        <div className="summary">
+          <div className="stat">
+            <div className="label">{filterTeacher || "ครูทั้งหมด"}</div>
+            <div className="value">
+              {items.length} <small>รายการ</small>
+            </div>
+          </div>
+          <div className="stat">
+            <div className="label">รวมจำนวนชั่วโมงการอบรม</div>
+            <div className="value">
+              {totalHours.toLocaleString("th-TH")} <small>ชั่วโมง</small>
+            </div>
+          </div>
+        </div>
+
         {loading ? (
           <p className="empty">กำลังโหลด...</p>
         ) : items.length === 0 ? (
           <p className="empty">ยังไม่มีเกียรติบัตร</p>
         ) : (
-          <div className="cert-list">
-            {items.map((c) => (
-              <div className="cert-item" key={c.id}>
-                {c.file_type?.startsWith("image/") ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img className="cert-thumb" src={c.file_url} alt={c.title} />
-                ) : (
-                  <div className="cert-thumb">📄</div>
-                )}
-                <div className="cert-info">
-                  <div className="title">{c.title}</div>
-                  <div className="meta">{c.teacher}</div>
-                  <div className="meta">
-                    {[
-                      formatEventDate(c.event_date),
-                      c.organizer,
-                      c.hours != null ? `${c.hours} ชั่วโมง` : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </div>
-                  <div className="meta">อัปโหลด {formatDate(c.created_at)}</div>
-                </div>
-                <div className="cert-actions">
-                  <a
-                    className="link-btn"
-                    href={c.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    เปิด/ดาวน์โหลด
-                  </a>
-                  <button
-                    className="link-btn danger"
-                    onClick={() => handleDelete(c.id)}
-                  >
-                    ลบ
-                  </button>
-                </div>
-              </div>
-            ))}
+          <div className="table-wrap">
+            <table className="cert-table">
+              <thead>
+                <tr>
+                  <th className="col-no">ลำดับ{"\n"}ที่</th>
+                  {showTeacherColumn && <th>ชื่อครู</th>}
+                  <th>ชื่อหลักสูตร/โครงการ/{"\n"}กิจกรรม</th>
+                  <th>วัน/เดือน/ปี{"\n"}ที่เข้าร่วมกิจกรรม</th>
+                  <th>หน่วยงานที่จัดอบรม</th>
+                  <th>จำนวนชั่วโมง{"\n"}การอบรม</th>
+                  <th>หลักฐาน</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((c, i) => (
+                  <tr key={c.id}>
+                    <td className="col-no">{i + 1}</td>
+                    {showTeacherColumn && <td>{c.teacher}</td>}
+                    <td>{c.title}</td>
+                    <td className="col-center">{formatEventDate(c.event_date)}</td>
+                    <td>{c.organizer || "-"}</td>
+                    <td className="col-hours">
+                      {c.hours != null ? `${c.hours} ชั่วโมง` : "-"}
+                    </td>
+                    <td className="col-evidence">
+                      <a
+                        className="thumb-link"
+                        href={c.file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="เปิดดูเกียรติบัตร"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={c.file_url} alt={c.title} />
+                      </a>
+                      <br />
+                      <button className="del-link" onClick={() => handleDelete(c.id)}>
+                        ลบ
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="tfoot-row">
+                  <td colSpan={colCount - 2} style={{ textAlign: "right" }}>
+                    รวมจำนวนชั่วโมงการอบรมทั้งหมด
+                  </td>
+                  <td className="col-hours">{totalHours.toLocaleString("th-TH")} ชั่วโมง</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
         )}
       </section>
 
-      <p className="footer">ระบบจัดเก็บเกียรติบัตรครู · ขับเคลื่อนด้วย Next.js + Supabase</p>
+      <p className="footer">ระบบจัดเก็บเกียรติบัตรครู · โรงเรียนวัดบางขุด (อุ่นพิทยาคาร)</p>
     </div>
   );
 }
