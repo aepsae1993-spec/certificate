@@ -52,10 +52,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "กรุณาเลือกไฟล์" }, { status: 400 });
     }
 
-    const allowed = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+    const allowed = ["image/jpeg", "image/png"];
     if (!allowed.includes(file.type)) {
       return NextResponse.json(
-        { error: "รองรับเฉพาะไฟล์ PDF, JPG, PNG, WEBP" },
+        { error: "รองรับเฉพาะไฟล์รูปภาพ JPG หรือ PNG เท่านั้น" },
         { status: 400 }
       );
     }

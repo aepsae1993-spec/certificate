@@ -215,11 +215,11 @@ export default function Home() {
           </div>
 
           <div className="field">
-            <label htmlFor="file-input">ไฟล์ (PDF, JPG, PNG, WEBP — ไม่เกิน 10 MB)</label>
+            <label htmlFor="file-input">ไฟล์รูปภาพ (JPG หรือ PNG เท่านั้น — ไม่เกิน 10 MB)</label>
             <input
               id="file-input"
               type="file"
-              accept=".pdf,image/png,image/jpeg,image/webp"
+              accept="image/jpeg,image/png"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             />
           </div>
