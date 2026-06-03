@@ -13,7 +13,9 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from("certificates")
       .select("*")
-      .order("created_at", { ascending: false });
+      // เรียงตามวันที่เข้าร่วมกิจกรรม จากเก่าไปใหม่ (วันที่มาก่อนอยู่บนสุด)
+      .order("event_date", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: true });
 
     if (teacher) query = query.eq("teacher", teacher);
 

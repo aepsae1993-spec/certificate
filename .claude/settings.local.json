@@ -13,7 +13,8 @@
       "Bash(git remote *)",
       "Bash(git push *)",
       "Bash(git commit -q -m 'เพิ่มหัวข้อ วันที่เข้าร่วม, หน่วยงานที่จัดอบรม, จำนวนชั่วโมง *)",
-      "Bash(git commit -q -m 'แก้ Invalid key: ใช้ ASCII path สำหรับ Supabase Storage *)"
+      "Bash(git commit -q -m 'แก้ Invalid key: ใช้ ASCII path สำหรับ Supabase Storage *)",
+      "Bash(git commit -q -m 'เรียงรายการตามวันที่เข้าร่วมกิจกรรม \\(เก่าไปใหม่\\) *)"
     ]
   }
 }
