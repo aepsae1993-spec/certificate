@@ -7,11 +7,19 @@ create table if not exists public.certificates (
   id uuid primary key default gen_random_uuid(),
   teacher text not null,
   title text not null,
+  event_date date,            -- วัน/เดือน/ปี ที่เข้าร่วมกิจกรรม
+  organizer text,             -- หน่วยงานที่จัดอบรม
+  hours numeric,              -- จำนวนชั่วโมงการอบรม
   file_path text not null,
   file_url text not null,
   file_type text,
   created_at timestamptz not null default now()
 );
+
+-- ถ้าตารางมีอยู่แล้ว (สร้างไปก่อนหน้า) ให้เพิ่มคอลัมน์ใหม่
+alter table public.certificates add column if not exists event_date date;
+alter table public.certificates add column if not exists organizer text;
+alter table public.certificates add column if not exists hours numeric;
 
 create index if not exists certificates_teacher_idx on public.certificates (teacher);
 create index if not exists certificates_created_idx on public.certificates (created_at desc);

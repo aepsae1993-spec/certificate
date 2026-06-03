@@ -9,7 +9,10 @@
       "Bash(git init *)",
       "Bash(git add *)",
       "Bash(git commit -q -m 'ระบบอัปโหลดเกียรติบัตรครู \\(Next.js + Supabase\\) *)",
-      "Bash(git branch *)"
+      "Bash(git branch *)",
+      "Bash(git remote *)",
+      "Bash(git push *)",
+      "Bash(git commit -q -m 'เพิ่มหัวข้อ วันที่เข้าร่วม, หน่วยงานที่จัดอบรม, จำนวนชั่วโมง *)"
     ]
   }
 }

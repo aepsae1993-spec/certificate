@@ -7,10 +7,26 @@ type Certificate = {
   id: string;
   teacher: string;
   title: string;
+  event_date: string | null;
+  organizer: string | null;
+  hours: number | null;
   file_url: string;
   file_type: string | null;
   created_at: string;
 };
+
+function formatEventDate(iso: string | null) {
+  if (!iso) return null;
+  try {
+    return new Date(iso + "T00:00:00").toLocaleDateString("th-TH", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  } catch {
+    return iso;
+  }
+}
 
 function formatDate(iso: string) {
   try {
@@ -26,6 +42,9 @@ function formatDate(iso: string) {
 export default function Home() {
   const [teacher, setTeacher] = useState("");
   const [title, setTitle] = useState("");
+  const [eventDate, setEventDate] = useState("");
+  const [organizer, setOrganizer] = useState("");
+  const [hours, setHours] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(
@@ -73,6 +92,9 @@ export default function Home() {
       const fd = new FormData();
       fd.append("teacher", teacher);
       fd.append("title", title.trim());
+      fd.append("event_date", eventDate);
+      fd.append("organizer", organizer.trim());
+      fd.append("hours", hours);
       fd.append("file", file);
 
       const res = await fetch("/api/certificates", { method: "POST", body: fd });
@@ -81,6 +103,9 @@ export default function Home() {
 
       setMessage({ type: "success", text: "อัปโหลดเกียรติบัตรสำเร็จ ✅" });
       setTitle("");
+      setEventDate("");
+      setOrganizer("");
+      setHours("");
       setFile(null);
       (document.getElementById("file-input") as HTMLInputElement | null)?.value &&
         ((document.getElementById("file-input") as HTMLInputElement).value = "");
@@ -156,6 +181,40 @@ export default function Home() {
           </div>
 
           <div className="field">
+            <label htmlFor="event_date">วัน/เดือน/ปี ที่เข้าร่วมกิจกรรม</label>
+            <input
+              id="event_date"
+              type="date"
+              value={eventDate}
+              onChange={(e) => setEventDate(e.target.value)}
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="organizer">หน่วยงานที่จัดอบรม</label>
+            <input
+              id="organizer"
+              type="text"
+              placeholder="เช่น สพฐ. / มหาวิทยาลัย / หน่วยงานต้นสังกัด"
+              value={organizer}
+              onChange={(e) => setOrganizer(e.target.value)}
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="hours">จำนวนชั่วโมงการอบรม</label>
+            <input
+              id="hours"
+              type="number"
+              min="0"
+              step="0.5"
+              placeholder="เช่น 6"
+              value={hours}
+              onChange={(e) => setHours(e.target.value)}
+            />
+          </div>
+
+          <div className="field">
             <label htmlFor="file-input">ไฟล์ (PDF, JPG, PNG, WEBP — ไม่เกิน 10 MB)</label>
             <input
               id="file-input"
@@ -208,9 +267,17 @@ export default function Home() {
                 )}
                 <div className="cert-info">
                   <div className="title">{c.title}</div>
+                  <div className="meta">{c.teacher}</div>
                   <div className="meta">
-                    {c.teacher} · {formatDate(c.created_at)}
+                    {[
+                      formatEventDate(c.event_date),
+                      c.organizer,
+                      c.hours != null ? `${c.hours} ชั่วโมง` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </div>
+                  <div className="meta">อัปโหลด {formatDate(c.created_at)}</div>
                 </div>
                 <div className="cert-actions">
                   <a

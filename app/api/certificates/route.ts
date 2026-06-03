@@ -35,6 +35,9 @@ export async function POST(req: NextRequest) {
 
     const teacher = String(form.get("teacher") || "").trim();
     const title = String(form.get("title") || "").trim();
+    const eventDate = String(form.get("event_date") || "").trim();
+    const organizer = String(form.get("organizer") || "").trim();
+    const hoursRaw = String(form.get("hours") || "").trim();
     const file = form.get("file") as File | null;
 
     if (!teacher || !TEACHERS.includes(teacher)) {
@@ -60,6 +63,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "ไฟล์ต้องไม่เกิน 10 MB" }, { status: 400 });
     }
 
+    let hours: number | null = null;
+    if (hoursRaw) {
+      const n = Number(hoursRaw);
+      if (Number.isNaN(n) || n < 0) {
+        return NextResponse.json({ error: "จำนวนชั่วโมงไม่ถูกต้อง" }, { status: 400 });
+      }
+      hours = n;
+    }
+
     const ext = file.name.includes(".") ? file.name.split(".").pop() : "bin";
     const safeName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
     const filePath = `${teacher}/${safeName}`;
@@ -81,6 +93,9 @@ export async function POST(req: NextRequest) {
       .insert({
         teacher,
         title,
+        event_date: eventDate || null,
+        organizer: organizer || null,
+        hours,
         file_path: filePath,
         file_url: pub.publicUrl,
         file_type: file.type,
