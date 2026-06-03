@@ -91,6 +91,12 @@ export async function POST(req: NextRequest) {
 // DELETE /api/school-certificates?id=...
 export async function DELETE(req: NextRequest) {
   try {
+    const expected = process.env.DELETE_PASSWORD || "bangkhud";
+    const provided = req.headers.get("x-delete-password") || "";
+    if (provided !== expected) {
+      return NextResponse.json({ error: "รหัสผ่านไม่ถูกต้อง" }, { status: 401 });
+    }
+
     const supabase = getServiceClient();
     const id = req.nextUrl.searchParams.get("id");
     if (!id) return NextResponse.json({ error: "ไม่พบ id" }, { status: 400 });

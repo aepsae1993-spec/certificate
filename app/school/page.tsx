@@ -102,9 +102,13 @@ export default function SchoolPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("ต้องการลบเกียรติบัตรนี้ใช่หรือไม่?")) return;
+    const pwd = prompt("กรุณาใส่รหัสผ่านเพื่อลบเกียรติบัตร");
+    if (pwd === null) return; // กดยกเลิก
     try {
-      const res = await fetch(`/api/school-certificates?id=${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/school-certificates?id=${id}`, {
+        method: "DELETE",
+        headers: { "x-delete-password": pwd },
+      });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "ลบไม่สำเร็จ");
       setItems((prev) => prev.filter((c) => c.id !== id));
