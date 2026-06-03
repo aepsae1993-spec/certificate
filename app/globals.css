@@ -76,6 +76,37 @@ body {
   background: linear-gradient(90deg, transparent, var(--gold), transparent);
 }
 
+/* ---------- Nav tabs ---------- */
+.nav-tabs {
+  display: inline-flex;
+  gap: 8px;
+  margin-top: 22px;
+  padding: 6px;
+  background: rgba(212, 175, 55, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.nav-tab {
+  text-decoration: none;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.96rem;
+  padding: 9px 20px;
+  border-radius: 10px;
+  transition: color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.nav-tab:hover {
+  color: var(--gold-light);
+}
+
+.nav-tab.active {
+  color: #1a1405;
+  background: linear-gradient(180deg, var(--gold-light), var(--gold));
+  box-shadow: 0 3px 12px rgba(212, 175, 55, 0.3);
+}
+
 /* ---------- Card ---------- */
 .card {
   background: linear-gradient(180deg, var(--panel), var(--panel-2));

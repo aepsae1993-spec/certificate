@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TEACHERS } from "@/lib/teachers";
+import SiteHeader from "@/app/_components/SiteHeader";
 
 type Certificate = {
   id: string;
@@ -171,13 +172,7 @@ export default function Home() {
         </div>
       )}
 
-      <header className="header">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="logo" src="/logo.png" alt="ตราโรงเรียน" />
-        <h1>ระบบจัดเก็บเกียรติบัตรครู</h1>
-        <p className="subtitle">โรงเรียนวัดบางขุด (อุ่นพิทยาคาร)</p>
-        <div className="divider" />
-      </header>
+      <SiteHeader />
 
       {message && <div className={`alert ${message.type}`}>{message.text}</div>}
 

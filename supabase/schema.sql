@@ -52,3 +52,28 @@ create policy "อ่านไฟล์เกียรติบัตรได�
   on storage.objects for select
   to anon, authenticated
   using (bucket_id = 'certificates');
+
+-- ============================================================
+-- 4) ตารางเกียรติบัตรของโรงเรียน (ไม่ผูกกับครูรายคน)
+-- ============================================================
+create table if not exists public.school_certificates (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,        -- ชื่อเกียรติบัตร
+  issue_date date,            -- วัน/เดือน/ปี ที่ออก
+  issuer text,                -- หน่วยงานที่ออกเกียรติบัตร
+  file_path text not null,
+  file_url text not null,
+  file_type text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists school_certificates_issue_idx
+  on public.school_certificates (issue_date);
+
+alter table public.school_certificates enable row level security;
+
+drop policy if exists "อ่านเกียรติบัตรโรงเรียนได้ทุกคน" on public.school_certificates;
+create policy "อ่านเกียรติบัตรโรงเรียนได้ทุกคน"
+  on public.school_certificates for select
+  to anon, authenticated
+  using (true);
