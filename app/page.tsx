@@ -46,6 +46,7 @@ export default function Home() {
   const [filterTeacher, setFilterTeacher] = useState("");
   const [items, setItems] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(false);
+  const [reporting, setReporting] = useState(false);
 
   const loadList = useCallback(async (t: string) => {
     setLoading(true);
@@ -130,6 +131,23 @@ export default function Home() {
       });
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function handleReport() {
+    if (!filterTeacher || items.length === 0) return;
+    setReporting(true);
+    setMessage(null);
+    try {
+      const { generateTeacherReport } = await import("@/app/_lib/report");
+      await generateTeacherReport(filterTeacher, items);
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "สร้างรายงานไม่สำเร็จ",
+      });
+    } finally {
+      setReporting(false);
     }
   }
 
@@ -299,6 +317,14 @@ export default function Home() {
                 </div>
               </div>
             </div>
+
+            {items.length > 0 && (
+              <div className="report-bar">
+                <button className="btn" onClick={handleReport} disabled={reporting}>
+                  {reporting ? "กำลังสร้างรายงาน..." : "📄 รายงาน PDF"}
+                </button>
+              </div>
+            )}
 
             {loading ? (
           <p className="empty">กำลังโหลด...</p>

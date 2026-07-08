@@ -23,7 +23,19 @@
       "Bash(git commit -q -m 'ไม่โหลดรายการจนกว่าจะเลือกชื่อครูก่อน *)",
       "Bash(git commit -q -m 'แจ้งอัปโหลดสำเร็จเป็น popup กลางจอพร้อมอนิเมชั่น 3D *)",
       "Bash(git commit -q -m 'เพิ่มหน้าเกียรติบัตรโรงเรียน + เมนูสลับหน้า *)",
-      "Bash(git commit -q -m 'ต้องใส่รหัสผ่านก่อนลบเกียรติบัตร \\(ตรวจฝั่งเซิร์ฟเวอร์\\) *)"
+      "Bash(git commit -q -m 'ต้องใส่รหัสผ่านก่อนลบเกียรติบัตร \\(ตรวจฝั่งเซิร์ฟเวอร์\\) *)",
+      "Bash(python -c \"import pypdf; r=pypdf.PdfReader\\('รายงานอบรม ประจำเดือนมิถุนายน ปีการศึกษา 2569.pdf'\\); print\\('pages',len\\(r.pages\\)\\); [print\\('--- PAGE',i+1,'---\\\\n', r.pages[i].extract_text\\(\\)\\) for i in range\\(min\\(3,len\\(r.pages\\)\\)\\)]\")",
+      "Bash(py -3 --version)",
+      "Bash(pdftotext -layout -f 1 -l 2 \"รายงานอบรม ประจำเดือนมิถุนายน ปีการศึกษา 2569.pdf\" -)",
+      "Bash(curl -sL \"https://github.com/google/fonts/raw/main/ofl/sarabun/Sarabun-Regular.ttf\" -o public/fonts/Sarabun-Regular.ttf)",
+      "Bash(curl -sL \"https://github.com/google/fonts/raw/main/ofl/sarabun/Sarabun-Bold.ttf\" -o public/fonts/Sarabun-Bold.ttf)",
+      "Bash(file public/fonts/*.ttf)",
+      "Bash(node \"C:\\\\Users\\\\prawe\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-prawe-OneDrive--------------------------\\\\1daec214-d1f8-43ae-b0bc-7b56b538d69f\\\\scratchpad\\\\testpdf.cjs\")",
+      "Bash(cp \"C:\\\\Users\\\\prawe\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-prawe-OneDrive--------------------------\\\\1daec214-d1f8-43ae-b0bc-7b56b538d69f\\\\scratchpad\\\\testpdf.cjs\" ./_test.cjs)",
+      "Bash(node _test.cjs)",
+      "Bash(pdffonts \"C:\\\\Users\\\\prawe\\\\AppData\\\\Local\\\\Temp\\\\test-report.pdf\")",
+      "Bash(pdftotext -f 1 -l 1 \"C:\\\\Users\\\\prawe\\\\AppData\\\\Local\\\\Temp\\\\test-report.pdf\" -)",
+      "Bash(git commit -q -m 'เพิ่มปุ่มรายงาน PDF \\(jsPDF+ฟอนต์ไทย+QR\\) พร้อมเงื่อนไขแบ่งหน้า *)"
     ]
   }
 }
