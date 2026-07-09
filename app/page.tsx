@@ -47,6 +47,7 @@ export default function Home() {
   const [items, setItems] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(false);
   const [reporting, setReporting] = useState(false);
+  const [reporter, setReporter] = useState("");
 
   const loadList = useCallback(async (t: string) => {
     setLoading(true);
@@ -74,6 +75,7 @@ export default function Home() {
       setItems([]);
       return;
     }
+    setReporter(filterTeacher); // ผู้รายงาน default = ครูที่เลือก (เปลี่ยนได้)
     loadList(filterTeacher);
   }, [filterTeacher, loadList]);
 
@@ -140,7 +142,7 @@ export default function Home() {
     setMessage(null);
     try {
       const { generateTeacherReport } = await import("@/app/_lib/report");
-      await generateTeacherReport(filterTeacher, items);
+      await generateTeacherReport(filterTeacher, reporter || filterTeacher, items);
     } catch (err) {
       setMessage({
         type: "error",
@@ -320,6 +322,20 @@ export default function Home() {
 
             {items.length > 0 && (
               <div className="report-bar">
+                <div className="field report-reporter">
+                  <label htmlFor="reporter">ผู้รายงาน</label>
+                  <select
+                    id="reporter"
+                    value={reporter}
+                    onChange={(e) => setReporter(e.target.value)}
+                  >
+                    {TEACHERS.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <button className="btn" onClick={handleReport} disabled={reporting}>
                   {reporting ? "กำลังสร้างรายงาน..." : "📄 รายงาน PDF"}
                 </button>

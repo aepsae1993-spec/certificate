@@ -35,7 +35,8 @@
       "Bash(node _test.cjs)",
       "Bash(pdffonts \"C:\\\\Users\\\\prawe\\\\AppData\\\\Local\\\\Temp\\\\test-report.pdf\")",
       "Bash(pdftotext -f 1 -l 1 \"C:\\\\Users\\\\prawe\\\\AppData\\\\Local\\\\Temp\\\\test-report.pdf\" -)",
-      "Bash(git commit -q -m 'เพิ่มปุ่มรายงาน PDF \\(jsPDF+ฟอนต์ไทย+QR\\) พร้อมเงื่อนไขแบ่งหน้า *)"
+      "Bash(git commit -q -m 'เพิ่มปุ่มรายงาน PDF \\(jsPDF+ฟอนต์ไทย+QR\\) พร้อมเงื่อนไขแบ่งหน้า *)",
+      "Bash(git commit -q -m 'รายงาน PDF: โลโก้, ผู้รายงานเลือกได้, ผอ.ณรงค์, เว้นที่เซ็น, คอลัมน์ตามตาราง, แก้ภาษาไทยด้วย canvas *)"
     ]
   }
 }

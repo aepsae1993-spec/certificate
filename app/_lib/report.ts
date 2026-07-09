@@ -1,9 +1,10 @@
-// สร้างรายงาน PDF ฝั่ง client ด้วย jsPDF + ฟอนต์ไทย Sarabun + QR
+// สร้างรายงาน PDF ฝั่ง client
+// แก้ปัญหาภาษาไทย (สระ/วรรณยุกต์ซ้อน, คำขาด) โดย render ข้อความผ่าน canvas ของเบราว์เซอร์
+// (ได้ Thai shaping ที่ถูกต้อง) แล้วฝังเป็นรูปลงใน jsPDF
+//
 // เงื่อนไขการแบ่งหน้า:
-//  - หัวตารางซ้ำทุกหน้า (showHead: 'everyPage')
-//  - แถวข้อมูล + QR ไม่ถูกตัดครึ่ง (rowPageBreak: 'avoid')
-//  - บล็อกลงนามอยู่รวมกันเสมอ ไปท้ายตารางหน้าสุดท้าย
-//  - เลขหน้ามุมบนขวา 1/2, วันที่-เวลาบนซ้าย, พิมพ์เมื่อล่างขวา ครบทุกหน้า
+//  - หัวตารางซ้ำทุกหน้า, แถว+QR ไม่ถูกตัดครึ่ง, บล็อกลงนามอยู่รวมกันไม่แยกหน้า
+//  - เลขหน้า 1/2 มุมขวาบน, วันที่-เวลาบนซ้าย, พิมพ์เมื่อล่างขวา ครบทุกหน้า
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import QRCode from "qrcode";
@@ -17,29 +18,141 @@ export type ReportItem = {
   file_url: string;
 };
 
-// แคชฟอนต์ base64 ไว้ใช้ซ้ำ
-let fontCache: { regular: string; bold: string } | null = null;
+const DIRECTOR = "นายณรงค์ เนตรลา"; // ผู้อำนวยการ (คงที่)
+const LOGO_URL =
+  "https://hllulfnvwcrzsiwofqzx.supabase.co/storage/v1/object/public/logo/school-logo.png";
 
-async function fetchFontBase64(url: string): Promise<string> {
-  const res = await fetch(url);
-  const buf = await res.arrayBuffer();
-  let binary = "";
-  const bytes = new Uint8Array(buf);
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+const RES = 16; // px ต่อ mm ในการ render canvas (ความคมชัด)
+const THAI_COMBINING = /[ัำ-ฺ็-๎]/;
+
+type TextImg = { dataUrl: string; wMm: number; hMm: number };
+
+let measureCtx: CanvasRenderingContext2D | null = null;
+function getMeasureCtx() {
+  if (!measureCtx) {
+    const c = document.createElement("canvas");
+    measureCtx = c.getContext("2d");
   }
-  return btoa(binary);
+  return measureCtx!;
 }
 
-async function loadFonts() {
-  if (fontCache) return fontCache;
-  const [regular, bold] = await Promise.all([
-    fetchFontBase64("/fonts/Sarabun-Regular.ttf"),
-    fetchFontBase64("/fonts/Sarabun-Bold.ttf"),
-  ]);
-  fontCache = { regular, bold };
-  return fontCache;
+async function ensureFont() {
+  try {
+    await Promise.all([
+      document.fonts.load('16px "Sarabun"'),
+      document.fonts.load('bold 16px "Sarabun"'),
+    ]);
+    await document.fonts.ready;
+  } catch {
+    /* ใช้ฟอนต์สำรองถ้าโหลดไม่ได้ */
+  }
+}
+
+// แบ่งเป็น cluster: ตัวอักษรฐาน + สระ/วรรณยุกต์ที่เกาะอยู่ (กันไม่ให้วรรณยุกต์หลุดขึ้นบรรทัดใหม่)
+function toClusters(text: string): string[] {
+  const out: string[] = [];
+  for (const ch of Array.from(text)) {
+    if (out.length && THAI_COMBINING.test(ch)) {
+      out[out.length - 1] += ch;
+    } else {
+      out.push(ch);
+    }
+  }
+  return out;
+}
+
+function wrapLine(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxPx: number
+): string[] {
+  if (!isFinite(maxPx)) return [text];
+  const clusters = toClusters(text);
+  const lines: string[] = [];
+  let cur = "";
+  for (const c of clusters) {
+    const test = cur + c;
+    if (cur === "" || ctx.measureText(test).width <= maxPx) {
+      cur = test;
+    } else {
+      lines.push(cur);
+      cur = c;
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+function renderText(
+  text: string,
+  opts: {
+    fontMm: number;
+    weight?: "normal" | "bold";
+    color?: string;
+    align?: "left" | "center";
+    maxWidthMm?: number;
+  }
+): TextImg {
+  const { fontMm, weight = "normal", color = "#1a1a1a", align = "left" } = opts;
+  const fontPx = fontMm * RES;
+  const maxPx = opts.maxWidthMm ? opts.maxWidthMm * RES : Infinity;
+  const fontSpec = `${weight === "bold" ? "bold " : ""}${fontPx}px "Sarabun", sans-serif`;
+
+  const mctx = getMeasureCtx();
+  mctx.font = fontSpec;
+
+  const rawLines = text
+    .split("\n")
+    .flatMap((l) => wrapLine(mctx, l, maxPx));
+
+  const lineH = fontPx * 1.5;
+  const topPad = fontPx * 0.42;
+  const botPad = fontPx * 0.28;
+  const widthPx = Math.max(
+    1,
+    Math.ceil(Math.max(...rawLines.map((l) => mctx.measureText(l).width)))
+  );
+  const heightPx = Math.ceil(rawLines.length * lineH + topPad + botPad);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = widthPx;
+  canvas.height = heightPx;
+  const ctx = canvas.getContext("2d")!;
+  ctx.font = fontSpec;
+  ctx.textBaseline = "top";
+  ctx.fillStyle = color;
+  rawLines.forEach((l, i) => {
+    const lw = ctx.measureText(l).width;
+    const x = align === "center" ? (widthPx - lw) / 2 : 0;
+    ctx.fillText(l, x, topPad + i * lineH);
+  });
+
+  return {
+    dataUrl: canvas.toDataURL("image/png"),
+    wMm: widthPx / RES,
+    hMm: heightPx / RES,
+  };
+}
+
+async function fetchAsDataUrl(url: string): Promise<string> {
+  const res = await fetch(url, { mode: "cors" });
+  if (!res.ok) throw new Error("โหลดรูปไม่สำเร็จ");
+  const blob = await res.blob();
+  return await new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(String(fr.result));
+    fr.onerror = reject;
+    fr.readAsDataURL(blob);
+  });
+}
+
+function loadImageSize(dataUrl: string): Promise<{ w: number; h: number }> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+    img.onerror = () => resolve({ w: 1, h: 1 });
+    img.src = dataUrl;
+  });
 }
 
 function thaiDate(iso: string | null): string {
@@ -63,186 +176,275 @@ function shortDateTime(d: Date): string {
 
 function fullThaiDateTime(d: Date): string {
   return (
-    d.toLocaleDateString("th-TH", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    }) +
+    d.toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" }) +
     " " +
     d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) +
     " น."
   );
 }
 
-export async function generateTeacherReport(teacher: string, items: ReportItem[]) {
-  const fonts = await loadFonts();
+export async function generateTeacherReport(
+  teacher: string,
+  reporter: string,
+  items: ReportItem[]
+) {
+  await ensureFont();
 
-  // สร้าง QR ของแต่ละแถวล่วงหน้า (async) แล้วค่อยวาดในตาราง
+  // โลโก้ (จาก Supabase; ถ้าไม่ได้ใช้ไฟล์ในเครื่อง)
+  let logo: { dataUrl: string; w: number; h: number } | null = null;
+  try {
+    let dataUrl: string;
+    try {
+      dataUrl = await fetchAsDataUrl(LOGO_URL);
+    } catch {
+      dataUrl = await fetchAsDataUrl("/logo.png");
+    }
+    const size = await loadImageSize(dataUrl);
+    logo = { dataUrl, w: size.w, h: size.h };
+  } catch {
+    logo = null;
+  }
+
+  // QR ของแต่ละแถว
   const qrByRow: string[] = await Promise.all(
     items.map((it) =>
       it.file_url
-        ? QRCode.toDataURL(it.file_url, { margin: 0, width: 220 })
+        ? QRCode.toDataURL(it.file_url, { margin: 0, width: 240 })
         : Promise.resolve("")
     )
   );
 
   const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
-  doc.addFileToVFS("Sarabun-Regular.ttf", fonts.regular);
-  doc.addFont("Sarabun-Regular.ttf", "Sarabun", "normal");
-  doc.addFileToVFS("Sarabun-Bold.ttf", fonts.bold);
-  doc.addFont("Sarabun-Bold.ttf", "Sarabun", "bold");
-  doc.setFont("Sarabun", "normal");
-
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = { top: 24, left: 12, right: 12, bottom: 18 };
+  const margin = { top: 18, left: 12, right: 12, bottom: 16 };
 
+  // คอลัมน์ตามตารางในแอป (รูปแนบ 2)
+  const headLabels = [
+    "ลำดับที่",
+    "ชื่อหลักสูตร/โครงการ/กิจกรรม",
+    "วัน/เดือน/ปี\nที่เข้าร่วมกิจกรรม",
+    "หน่วยงานที่จัดอบรม",
+    "จำนวนชั่วโมง\nการอบรม",
+    "หลักฐาน",
+  ];
+  const colWidth = [14, 60, 26, 46, 18, 22];
+  const align: ("left" | "center")[] = [
+    "center",
+    "left",
+    "center",
+    "left",
+    "center",
+    "center",
+  ];
+  const PAD = 2;
+  const inner = (i: number) => colWidth[i] - PAD * 2;
+  const QR_MM = 18;
+
+  // เตรียมรูปหัวตาราง
+  const headImgs = headLabels.map((t, i) =>
+    renderText(t, {
+      fontMm: 3.1,
+      weight: "bold",
+      color: "#241c05",
+      align: "center",
+      maxWidthMm: inner(i),
+    })
+  );
+  const headRowH = Math.max(...headImgs.map((h) => h.hMm)) + 3;
+
+  // เตรียมรูปแต่ละเซลล์ + ความสูงแต่ละแถว
+  const cellImgs: (TextImg | null)[][] = [];
+  const rowH: number[] = [];
+  items.forEach((it, r) => {
+    const row: (TextImg | null)[] = [
+      renderText(String(r + 1), { fontMm: 3.2, align: "center", maxWidthMm: inner(0) }),
+      renderText(it.title, { fontMm: 3.2, align: "left", maxWidthMm: inner(1) }),
+      renderText(thaiDate(it.event_date), {
+        fontMm: 3.2,
+        align: "center",
+        maxWidthMm: inner(2),
+      }),
+      renderText(it.organizer || "-", {
+        fontMm: 3.2,
+        align: "left",
+        maxWidthMm: inner(3),
+      }),
+      renderText(it.hours != null ? `${it.hours} ชั่วโมง` : "-", {
+        fontMm: 3.2,
+        align: "center",
+        maxWidthMm: inner(4),
+      }),
+      null, // หลักฐาน = QR
+    ];
+    cellImgs.push(row);
+    const textH = Math.max(...row.filter(Boolean).map((c) => (c as TextImg).hMm));
+    rowH.push(Math.max(textH, QR_MM) + 3);
+  });
+
+  // ข้อความหัว/ท้ายหน้า (เตรียมครั้งเดียว)
   const now = new Date();
-  const nowShort = shortDateTime(now);
-  const printedText = "พิมพ์เมื่อ " + fullThaiDateTime(now);
-  const totalHours = items.reduce((s, it) => s + (it.hours || 0), 0);
+  const dateImg = renderText(shortDateTime(now), { fontMm: 2.9, color: "#5b5b5b" });
+  const printedImg = renderText("พิมพ์เมื่อ " + fullThaiDateTime(now), {
+    fontMm: 2.9,
+    color: "#5b5b5b",
+  });
 
-  // วาดกรอบหัว-ท้ายของแต่ละหน้า (วันที่-เวลาบนซ้าย, พิมพ์เมื่อล่างขวา)
-  const drawChrome = () => {
-    doc.setFont("Sarabun", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(90);
-    doc.text(nowShort, margin.left, 10);
-    doc.text(printedText, pageWidth - margin.right, pageHeight - 8, {
-      align: "right",
-    });
-    doc.setTextColor(0);
+  const place = (img: TextImg, cell: any, al: "left" | "center") => {
+    const x = al === "center" ? cell.x + (cell.width - img.wMm) / 2 : cell.x + PAD;
+    const y = cell.y + (cell.height - img.hMm) / 2;
+    doc.addImage(img.dataUrl, "PNG", x, y, img.wMm, img.hMm);
   };
 
+  const drawChrome = () => {
+    doc.addImage(dateImg.dataUrl, "PNG", margin.left, 6, dateImg.wMm, dateImg.hMm);
+    doc.addImage(
+      printedImg.dataUrl,
+      "PNG",
+      pageWidth - margin.right - printedImg.wMm,
+      pageHeight - 8,
+      printedImg.wMm,
+      printedImg.hMm
+    );
+  };
+
+  const totalHours = items.reduce((s, it) => s + (it.hours || 0), 0);
+  const startY = logo ? 56 : 46;
+
   autoTable(doc, {
-    startY: 44, // เว้นที่หัวรายงานในหน้าแรก
+    startY,
     margin,
     showHead: "everyPage",
-    rowPageBreak: "avoid", // ไม่ตัดแถวครึ่งข้ามหน้า
+    rowPageBreak: "avoid",
     theme: "grid",
     styles: {
-      font: "Sarabun",
-      fontStyle: "normal",
-      fontSize: 10,
-      cellPadding: 2.5,
-      valign: "middle",
+      cellPadding: { top: 1.5, right: PAD, bottom: 1.5, left: PAD },
       lineColor: [180, 150, 60],
       lineWidth: 0.2,
-      textColor: 20,
+      minCellHeight: 8,
     },
-    headStyles: {
-      font: "Sarabun",
-      fontStyle: "bold",
-      fillColor: [212, 175, 55],
-      textColor: 20,
-      halign: "center",
-      valign: "middle",
+    headStyles: { fillColor: [212, 175, 55], minCellHeight: headRowH },
+    columnStyles: Object.fromEntries(
+      colWidth.map((w, i) => [i, { cellWidth: w }])
+    ) as any,
+    head: [headLabels.map(() => "")],
+    body: items.map(() => ["", "", "", "", "", ""]),
+    didParseCell: (data: any) => {
+      if (data.section === "head") data.cell.styles.minCellHeight = headRowH;
+      if (data.section === "body")
+        data.cell.styles.minCellHeight = rowH[data.row.index];
     },
-    columnStyles: {
-      0: { halign: "center", cellWidth: 16 },
-      1: { cellWidth: 68 },
-      2: { cellWidth: 38 },
-      3: { halign: "center", cellWidth: 30 },
-      4: { halign: "center", valign: "middle", cellWidth: 34, minCellHeight: 28 },
-    },
-    head: [
-      [
-        "ลำดับที่",
-        "ชื่อหลักสูตร/โครงการ/กิจกรรม",
-        "ครูผู้เข้าอบรม",
-        "วัน/เดือน/ปี",
-        "หลักฐาน",
-      ],
-    ],
-    body: items.map((it, i) => [
-      String(i + 1),
-      `${it.title}\nหน่วยงาน: ${it.organizer || "-"}  ·  ${
-        it.hours != null ? it.hours + " ชั่วโมง" : "-"
-      }`,
-      it.teacher,
-      thaiDate(it.event_date),
-      "", // ช่อง QR จะวาดด้วย didDrawCell
-    ]),
-    // วาด QR ในคอลัมน์หลักฐาน
     didDrawCell: (data: any) => {
-      if (data.section === "body" && data.column.index === 4) {
-        const img = qrByRow[data.row.index];
-        if (img) {
-          const size = 22;
-          const x = data.cell.x + (data.cell.width - size) / 2;
-          const y = data.cell.y + (data.cell.height - size) / 2;
-          doc.addImage(img, "PNG", x, y, size, size);
+      const col = data.column.index;
+      if (data.section === "head") {
+        place(headImgs[col], data.cell, "center");
+        return;
+      }
+      if (data.section === "body") {
+        if (col === 5) {
+          const qr = qrByRow[data.row.index];
+          if (qr) {
+            const x = data.cell.x + (data.cell.width - QR_MM) / 2;
+            const y = data.cell.y + (data.cell.height - QR_MM) / 2;
+            doc.addImage(qr, "PNG", x, y, QR_MM, QR_MM);
+          }
+        } else {
+          const img = cellImgs[data.row.index][col];
+          if (img) place(img, data.cell, align[col]);
         }
       }
     },
-    // หัวรายงาน (หน้าแรก) + กรอบทุกหน้า
     didDrawPage: (data: any) => {
       drawChrome();
       if (data.pageNumber === 1) {
-        doc.setFont("Sarabun", "bold");
-        doc.setFontSize(16);
-        doc.text("รายงานการเข้าร่วมอบรมและพัฒนาตนเอง", pageWidth / 2, 18, {
+        if (logo) {
+          const h = 22;
+          const w = (logo.w / logo.h) * h;
+          doc.addImage(logo.dataUrl, "PNG", (pageWidth - w) / 2, 7, w, h);
+        }
+        const titleY = logo ? 31 : 14;
+        const t1 = renderText("รายงานการเข้าร่วมอบรมและพัฒนาตนเอง", {
+          fontMm: 5.4,
+          weight: "bold",
+          color: "#241c05",
           align: "center",
         });
-        doc.setFontSize(12);
-        doc.text("โรงเรียนวัดบางขุด (อุ่นพิทยาคาร)", pageWidth / 2, 26, {
+        doc.addImage(t1.dataUrl, "PNG", (pageWidth - t1.wMm) / 2, titleY, t1.wMm, t1.hMm);
+        const t2 = renderText("โรงเรียนวัดบางขุด (อุ่นพิทยาคาร)", {
+          fontMm: 4.1,
+          weight: "bold",
+          color: "#3a3a3a",
           align: "center",
         });
-        doc.setFont("Sarabun", "normal");
-        doc.setFontSize(11);
-        doc.text(
-          `ชื่อครู: ${teacher}     จำนวน ${items.length} รายการ     รวม ${totalHours} ชั่วโมง`,
-          pageWidth / 2,
-          34,
-          { align: "center" }
+        doc.addImage(
+          t2.dataUrl,
+          "PNG",
+          (pageWidth - t2.wMm) / 2,
+          titleY + 7.5,
+          t2.wMm,
+          t2.hMm
+        );
+        const t3 = renderText(
+          `ชื่อครู: ${teacher}      จำนวน ${items.length} รายการ      รวม ${totalHours} ชั่วโมง`,
+          { fontMm: 3.5, color: "#222", align: "center" }
+        );
+        doc.addImage(
+          t3.dataUrl,
+          "PNG",
+          (pageWidth - t3.wMm) / 2,
+          titleY + 14.5,
+          t3.wMm,
+          t3.hMm
         );
       }
     },
   });
 
-  // ---------- บล็อกลงนาม (อยู่รวมกันเสมอ) ----------
-  const blockHeight = 46;
-  let y = (doc as any).lastAutoTable.finalY + 14;
+  // ---------- บล็อกลงนาม (อยู่รวมกันเสมอ + เว้นระยะให้เซ็นได้) ----------
+  const blockHeight = 52;
+  let y = (doc as any).lastAutoTable.finalY + 22; // เว้นห่างจากตารางให้เซ็นได้
   if (y + blockHeight > pageHeight - margin.bottom) {
     doc.addPage();
     drawChrome();
-    y = margin.top + 6;
+    y = margin.top + 16;
   }
 
   const usable = pageWidth - margin.left - margin.right;
   const leftX = margin.left + usable * 0.27;
   const rightX = margin.left + usable * 0.75;
 
-  doc.setFont("Sarabun", "normal");
-  doc.setFontSize(11);
-
-  const sig = (cx: number, role1: string, role2: string) => {
-    doc.text("ลงชื่อ ..............................................", cx, y, {
-      align: "center",
-    });
-    doc.text("( .............................................. )", cx, y + 10, {
-      align: "center",
-    });
-    doc.text(role1, cx, y + 18, { align: "center" });
-    if (role2) doc.text(role2, cx, y + 25, { align: "center" });
+  const centerLine = (text: string, cx: number, yy: number, fontMm = 3.4) => {
+    const img = renderText(text, { fontMm, color: "#1a1a1a", align: "center" });
+    doc.addImage(img.dataUrl, "PNG", cx - img.wMm / 2, yy, img.wMm, img.hMm);
   };
 
-  sig(leftX, "ผู้รายงาน", "");
-  sig(rightX, "ผู้อำนวยการโรงเรียนวัดบางขุด", "(อุ่นพิทยาคาร)");
+  const signBlock = (cx: number, name: string, role: string[]) => {
+    centerLine("ลงชื่อ ..............................................", cx, y);
+    centerLine(`( ${name} )`, cx, y + 14);
+    role.forEach((r, i) => centerLine(r, cx, y + 22 + i * 6.5));
+  };
+
+  signBlock(leftX, reporter || teacher, ["ผู้รายงาน"]);
+  signBlock(rightX, DIRECTOR, [
+    "ผู้อำนวยการโรงเรียนวัดบางขุด",
+    "(อุ่นพิทยาคาร)",
+  ]);
 
   // ---------- เลขหน้า มุมบนขวา (คำนวณจริง 1/2, 2/2) ----------
   const total = doc.getNumberOfPages();
   for (let i = 1; i <= total; i++) {
     doc.setPage(i);
-    doc.setFont("Sarabun", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(90);
-    doc.text(`หน้า ${i}/${total}`, pageWidth - margin.right, 10, {
-      align: "right",
-    });
-    doc.setTextColor(0);
+    const pn = renderText(`หน้า ${i}/${total}`, { fontMm: 2.9, color: "#5b5b5b" });
+    doc.addImage(
+      pn.dataUrl,
+      "PNG",
+      pageWidth - margin.right - pn.wMm,
+      6,
+      pn.wMm,
+      pn.hMm
+    );
   }
 
-  const safeTeacher = teacher.replace(/[\\/:*?"<>|]/g, "_");
-  doc.save(`รายงานอบรม-${safeTeacher}.pdf`);
+  const safe = teacher.replace(/[\\/:*?"<>|]/g, "_");
+  doc.save(`รายงานอบรม-${safe}.pdf`);
 }
