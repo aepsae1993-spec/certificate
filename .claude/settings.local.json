@@ -40,7 +40,10 @@
       "Bash(taskkill //PID 3652 //F)",
       "Bash(git commit -q -m 'เพิ่มโหมดรางวัลของครู + รายงาน PDF หน้าโรงเรียนและโหมดรางวัล *)",
       "Bash(rm -rf app/report-test)",
-      "Bash(git commit -q -m 'แก้คำขาดในรายงาน: ตัดบรรทัดตามคำไทยด้วย Intl.Segmenter + เปลี่ยนหัวข้อโรงเรียนเป็นที่ได้รับ *)"
+      "Bash(git commit -q -m 'แก้คำขาดในรายงาน: ตัดบรรทัดตามคำไทยด้วย Intl.Segmenter + เปลี่ยนหัวข้อโรงเรียนเป็นที่ได้รับ *)",
+      "mcp__83cbafa4-6faa-4a74-84a0-a0f6c05db679__list_projects",
+      "mcp__83cbafa4-6faa-4a74-84a0-a0f6c05db679__list_tables",
+      "Bash(git commit *)"
     ]
   }
 }

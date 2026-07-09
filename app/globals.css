@@ -296,8 +296,20 @@ body {
 .mode-switch-wrap .nav-tab {
   border: none;
   background: transparent;
+  color: var(--gold-light);
   cursor: pointer;
   font-family: inherit;
+}
+
+.mode-switch-wrap .nav-tab:not(.active):hover {
+  background: var(--gold-soft);
+}
+
+/* แท็บที่เลือกอยู่: พื้นทอง ตัวหนังสือเข้ม อ่านชัด */
+.mode-switch-wrap .nav-tab.active {
+  color: #1a1405;
+  background: linear-gradient(180deg, var(--gold-light), var(--gold));
+  box-shadow: 0 3px 12px rgba(212, 175, 55, 0.35);
 }
 
 .report-bar {
