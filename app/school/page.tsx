@@ -181,7 +181,7 @@ export default function SchoolPage() {
           </div>
 
           <div className="field">
-            <label htmlFor="issue_date">วัน/เดือน/ปี ที่ออก</label>
+            <label htmlFor="issue_date">วัน/เดือน/ปี ที่ได้รับ</label>
             <input
               id="issue_date"
               type="date"
@@ -262,7 +262,7 @@ export default function SchoolPage() {
                 <tr>
                   <th className="col-no">ลำดับ{"\n"}ที่</th>
                   <th>ชื่อเกียรติบัตร</th>
-                  <th>วัน/เดือน/ปี{"\n"}ที่ออก</th>
+                  <th>วัน/เดือน/ปี{"\n"}ที่ได้รับ</th>
                   <th>หน่วยงานที่ออกเกียรติบัตร</th>
                   <th>หลักฐาน</th>
                 </tr>

@@ -69,21 +69,66 @@ function toClusters(text: string): string[] {
   return out;
 }
 
-function wrapLine(ctx: CanvasRenderingContext2D, text: string, maxPx: number): string[] {
-  if (!isFinite(maxPx)) return [text];
-  const clusters = toClusters(text);
-  const lines: string[] = [];
-  let cur = "";
-  for (const c of clusters) {
-    const test = cur + c;
-    if (cur === "" || ctx.measureText(test).width <= maxPx) cur = test;
-    else {
-      lines.push(cur);
-      cur = c;
+// แบ่งเป็น "คำ" ภาษาไทยด้วย Intl.Segmenter (V8 แบ่งคำไทยแบบพจนานุกรม)
+let wordSeg: Intl.Segmenter | null | undefined;
+function segmentWords(text: string): string[] {
+  if (wordSeg === undefined) {
+    try {
+      wordSeg = new Intl.Segmenter("th", { granularity: "word" });
+    } catch {
+      wordSeg = null;
     }
   }
-  if (cur) lines.push(cur);
-  return lines;
+  if (!wordSeg) return toClusters(text);
+  return Array.from(wordSeg.segment(text), (s) => s.segment);
+}
+
+// ตัดคำยาวเกินช่องด้วย cluster (กรณีคำเดียวกว้างเกินความกว้างคอลัมน์)
+function breakLongWord(
+  ctx: CanvasRenderingContext2D,
+  word: string,
+  maxPx: number
+): string[] {
+  const cl = toClusters(word);
+  const out: string[] = [];
+  let c = "";
+  for (const ch of cl) {
+    const t = c + ch;
+    if (c === "" || ctx.measureText(t).width <= maxPx) c = t;
+    else {
+      out.push(c);
+      c = ch;
+    }
+  }
+  if (c) out.push(c);
+  return out;
+}
+
+function wrapLine(ctx: CanvasRenderingContext2D, text: string, maxPx: number): string[] {
+  if (!isFinite(maxPx)) return [text];
+  const words = segmentWords(text);
+  const lines: string[] = [];
+  let cur = "";
+  const pushCur = () => {
+    const t = cur.trim();
+    if (t !== "") lines.push(t);
+    cur = "";
+  };
+  for (const w of words) {
+    // ขึ้นบรรทัดใหม่เมื่อเติมคำนี้แล้วเกินความกว้าง
+    if (cur !== "" && ctx.measureText(cur + w).width > maxPx) pushCur();
+    if (ctx.measureText(w).width > maxPx) {
+      // คำเดียวยาวเกินช่อง → ตัดตามตัวอักษร
+      pushCur();
+      const parts = breakLongWord(ctx, w, maxPx);
+      for (let i = 0; i < parts.length - 1; i++) lines.push(parts[i].trim());
+      cur = parts[parts.length - 1] || "";
+    } else {
+      cur += w;
+    }
+  }
+  pushCur();
+  return lines.length ? lines : [""];
 }
 
 function renderText(
@@ -489,7 +534,7 @@ export async function generateSchoolReport(reporter: string, items: ReportItem[]
       noCol,
       { header: "ชื่อเกียรติบัตร", width: 82, align: "left", value: (it) => it.title },
       {
-        header: "วัน/เดือน/ปี\nที่ออก",
+        header: "วัน/เดือน/ปี\nที่ได้รับ",
         width: 28,
         align: "center",
         value: (it) => thaiDate(it.issue_date),
