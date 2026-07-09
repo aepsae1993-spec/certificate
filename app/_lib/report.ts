@@ -426,7 +426,7 @@ async function buildReport(opts: {
   };
 
   signBlock(leftX, reporter, ["ผู้รายงาน"]);
-  signBlock(rightX, DIRECTOR, ["ผู้อำนวยการโรงเรียนวัดบางขุด", "(อุ่นพิทยาคาร)"]);
+  signBlock(rightX, DIRECTOR, ["ผู้อำนวยการโรงเรียนวัดบางขุด (อุ่นพิทยาคาร)"]);
 
   // ---------- เลขหน้า ----------
   const total = doc.getNumberOfPages();
