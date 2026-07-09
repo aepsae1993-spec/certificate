@@ -421,8 +421,8 @@ async function buildReport(opts: {
 
   const signBlock = (cx: number, name: string, role: string[]) => {
     centerLine("ลงชื่อ ..............................................", cx, y);
-    centerLine(`( ${name} )`, cx, y + 14);
-    role.forEach((r, i) => centerLine(r, cx, y + 22 + i * 6.5));
+    centerLine(`( ${name} )`, cx, y + 9);
+    role.forEach((r, i) => centerLine(r, cx, y + 17 + i * 6.5));
   };
 
   signBlock(leftX, reporter, ["ผู้รายงาน"]);
