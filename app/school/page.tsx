@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import SiteHeader from "@/app/_components/SiteHeader";
+import { TEACHERS } from "@/lib/teachers";
 
 type SchoolCertificate = {
   id: string;
@@ -39,6 +40,8 @@ export default function SchoolPage() {
 
   const [items, setItems] = useState<SchoolCertificate[]>([]);
   const [loading, setLoading] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const [reporter, setReporter] = useState(TEACHERS[0]);
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -117,6 +120,23 @@ export default function SchoolPage() {
         type: "error",
         text: err instanceof Error ? err.message : "ลบไม่สำเร็จ",
       });
+    }
+  }
+
+  async function handleReport() {
+    if (items.length === 0) return;
+    setReporting(true);
+    setMessage(null);
+    try {
+      const { generateSchoolReport } = await import("@/app/_lib/report");
+      await generateSchoolReport(reporter, items);
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "สร้างรายงานไม่สำเร็จ",
+      });
+    } finally {
+      setReporting(false);
     }
   }
 
@@ -208,6 +228,28 @@ export default function SchoolPage() {
             </div>
           </div>
         </div>
+
+        {items.length > 0 && (
+          <div className="report-bar">
+            <div className="field report-reporter">
+              <label htmlFor="reporter">ผู้รายงาน</label>
+              <select
+                id="reporter"
+                value={reporter}
+                onChange={(e) => setReporter(e.target.value)}
+              >
+                {TEACHERS.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button className="btn" onClick={handleReport} disabled={reporting}>
+              {reporting ? "กำลังสร้างรายงาน..." : "📄 รายงาน PDF"}
+            </button>
+          </div>
+        )}
 
         {loading ? (
           <p className="empty">กำลังโหลด...</p>

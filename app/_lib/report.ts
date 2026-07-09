@@ -10,15 +10,18 @@ import autoTable from "jspdf-autotable";
 import QRCode from "qrcode";
 
 export type ReportItem = {
-  teacher: string;
+  teacher?: string;
   title: string;
-  event_date: string | null;
-  organizer: string | null;
-  hours: number | null;
+  event_date?: string | null;
+  issue_date?: string | null;
+  organizer?: string | null;
+  issuer?: string | null;
+  hours?: number | null;
   file_url: string;
 };
 
 const DIRECTOR = "นายณรงค์ เนตรลา"; // ผู้อำนวยการ (คงที่)
+const SUBTITLE = "โรงเรียนวัดบางขุด (อุ่นพิทยาคาร)";
 const LOGO_URL =
   "https://hllulfnvwcrzsiwofqzx.supabase.co/storage/v1/object/public/logo/school-logo.png";
 
@@ -26,6 +29,14 @@ const RES = 16; // px ต่อ mm ในการ render canvas (ความ�
 const THAI_COMBINING = /[ัำ-ฺ็-๎]/;
 
 type TextImg = { dataUrl: string; wMm: number; hMm: number };
+
+type Column = {
+  header: string;
+  width: number;
+  align: "left" | "center";
+  value?: (it: ReportItem, index: number) => string;
+  isQR?: boolean;
+};
 
 let measureCtx: CanvasRenderingContext2D | null = null;
 function getMeasureCtx() {
@@ -52,29 +63,21 @@ async function ensureFont() {
 function toClusters(text: string): string[] {
   const out: string[] = [];
   for (const ch of Array.from(text)) {
-    if (out.length && THAI_COMBINING.test(ch)) {
-      out[out.length - 1] += ch;
-    } else {
-      out.push(ch);
-    }
+    if (out.length && THAI_COMBINING.test(ch)) out[out.length - 1] += ch;
+    else out.push(ch);
   }
   return out;
 }
 
-function wrapLine(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  maxPx: number
-): string[] {
+function wrapLine(ctx: CanvasRenderingContext2D, text: string, maxPx: number): string[] {
   if (!isFinite(maxPx)) return [text];
   const clusters = toClusters(text);
   const lines: string[] = [];
   let cur = "";
   for (const c of clusters) {
     const test = cur + c;
-    if (cur === "" || ctx.measureText(test).width <= maxPx) {
-      cur = test;
-    } else {
+    if (cur === "" || ctx.measureText(test).width <= maxPx) cur = test;
+    else {
       lines.push(cur);
       cur = c;
     }
@@ -101,9 +104,7 @@ function renderText(
   const mctx = getMeasureCtx();
   mctx.font = fontSpec;
 
-  const rawLines = text
-    .split("\n")
-    .flatMap((l) => wrapLine(mctx, l, maxPx));
+  const rawLines = text.split("\n").flatMap((l) => wrapLine(mctx, l, maxPx));
 
   const lineH = fontPx * 1.5;
   const topPad = fontPx * 0.42;
@@ -127,11 +128,7 @@ function renderText(
     ctx.fillText(l, x, topPad + i * lineH);
   });
 
-  return {
-    dataUrl: canvas.toDataURL("image/png"),
-    wMm: widthPx / RES,
-    hMm: heightPx / RES,
-  };
+  return { dataUrl: canvas.toDataURL("image/png"), wMm: widthPx / RES, hMm: heightPx / RES };
 }
 
 async function fetchAsDataUrl(url: string): Promise<string> {
@@ -155,7 +152,7 @@ function loadImageSize(dataUrl: string): Promise<{ w: number; h: number }> {
   });
 }
 
-function thaiDate(iso: string | null): string {
+export function thaiDate(iso: string | null | undefined): string {
   if (!iso) return "-";
   try {
     return new Date(iso + "T00:00:00").toLocaleDateString("th-TH", {
@@ -183,11 +180,16 @@ function fullThaiDateTime(d: Date): string {
   );
 }
 
-export async function generateTeacherReport(
-  teacher: string,
-  reporter: string,
-  items: ReportItem[]
-) {
+// ---------- ตัวสร้างรายงานกลาง ----------
+async function buildReport(opts: {
+  title: string;
+  summaryLine: string;
+  reporter: string;
+  columns: Column[];
+  items: ReportItem[];
+  fileName: string;
+}) {
+  const { title, summaryLine, reporter, columns, items } = opts;
   await ensureFont();
 
   // โลโก้ (จาก Supabase; ถ้าไม่ได้ใช้ไฟล์ในเครื่อง)
@@ -205,6 +207,8 @@ export async function generateTeacherReport(
     logo = null;
   }
 
+  const qrColIndex = columns.findIndex((c) => c.isQR);
+
   // QR ของแต่ละแถว
   const qrByRow: string[] = await Promise.all(
     items.map((it) =>
@@ -218,32 +222,13 @@ export async function generateTeacherReport(
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = { top: 18, left: 12, right: 12, bottom: 16 };
-
-  // คอลัมน์ตามตารางในแอป (รูปแนบ 2)
-  const headLabels = [
-    "ลำดับที่",
-    "ชื่อหลักสูตร/โครงการ/กิจกรรม",
-    "วัน/เดือน/ปี\nที่เข้าร่วมกิจกรรม",
-    "หน่วยงานที่จัดอบรม",
-    "จำนวนชั่วโมง\nการอบรม",
-    "หลักฐาน",
-  ];
-  const colWidth = [14, 60, 26, 46, 18, 22];
-  const align: ("left" | "center")[] = [
-    "center",
-    "left",
-    "center",
-    "left",
-    "center",
-    "center",
-  ];
   const PAD = 2;
-  const inner = (i: number) => colWidth[i] - PAD * 2;
+  const inner = (i: number) => columns[i].width - PAD * 2;
   const QR_MM = 18;
 
-  // เตรียมรูปหัวตาราง
-  const headImgs = headLabels.map((t, i) =>
-    renderText(t, {
+  // หัวตาราง
+  const headImgs = columns.map((c, i) =>
+    renderText(c.header, {
       fontMm: 3.1,
       weight: "bold",
       color: "#241c05",
@@ -253,36 +238,26 @@ export async function generateTeacherReport(
   );
   const headRowH = Math.max(...headImgs.map((h) => h.hMm)) + 3;
 
-  // เตรียมรูปแต่ละเซลล์ + ความสูงแต่ละแถว
+  // เซลล์ + ความสูงแต่ละแถว
   const cellImgs: (TextImg | null)[][] = [];
   const rowH: number[] = [];
   items.forEach((it, r) => {
-    const row: (TextImg | null)[] = [
-      renderText(String(r + 1), { fontMm: 3.2, align: "center", maxWidthMm: inner(0) }),
-      renderText(it.title, { fontMm: 3.2, align: "left", maxWidthMm: inner(1) }),
-      renderText(thaiDate(it.event_date), {
-        fontMm: 3.2,
-        align: "center",
-        maxWidthMm: inner(2),
-      }),
-      renderText(it.organizer || "-", {
-        fontMm: 3.2,
-        align: "left",
-        maxWidthMm: inner(3),
-      }),
-      renderText(it.hours != null ? `${it.hours} ชั่วโมง` : "-", {
-        fontMm: 3.2,
-        align: "center",
-        maxWidthMm: inner(4),
-      }),
-      null, // หลักฐาน = QR
-    ];
+    const row: (TextImg | null)[] = columns.map((c, i) =>
+      c.isQR
+        ? null
+        : renderText(c.value ? c.value(it, r) : "", {
+            fontMm: 3.2,
+            align: c.align,
+            maxWidthMm: inner(i),
+          })
+    );
     cellImgs.push(row);
-    const textH = Math.max(...row.filter(Boolean).map((c) => (c as TextImg).hMm));
-    rowH.push(Math.max(textH, QR_MM) + 3);
+    const heights = row.filter(Boolean).map((c) => (c as TextImg).hMm);
+    const textH = heights.length ? Math.max(...heights) : 0;
+    rowH.push(Math.max(textH, qrColIndex >= 0 ? QR_MM : 0) + 3);
   });
 
-  // ข้อความหัว/ท้ายหน้า (เตรียมครั้งเดียว)
+  // ข้อความหัว/ท้ายหน้า
   const now = new Date();
   const dateImg = renderText(shortDateTime(now), { fontMm: 2.9, color: "#5b5b5b" });
   const printedImg = renderText("พิมพ์เมื่อ " + fullThaiDateTime(now), {
@@ -308,7 +283,6 @@ export async function generateTeacherReport(
     );
   };
 
-  const totalHours = items.reduce((s, it) => s + (it.hours || 0), 0);
   const startY = logo ? 56 : 46;
 
   autoTable(doc, {
@@ -325,14 +299,13 @@ export async function generateTeacherReport(
     },
     headStyles: { fillColor: [212, 175, 55], minCellHeight: headRowH },
     columnStyles: Object.fromEntries(
-      colWidth.map((w, i) => [i, { cellWidth: w }])
+      columns.map((c, i) => [i, { cellWidth: c.width }])
     ) as any,
-    head: [headLabels.map(() => "")],
-    body: items.map(() => ["", "", "", "", "", ""]),
+    head: [columns.map(() => "")],
+    body: items.map(() => columns.map(() => "")),
     didParseCell: (data: any) => {
       if (data.section === "head") data.cell.styles.minCellHeight = headRowH;
-      if (data.section === "body")
-        data.cell.styles.minCellHeight = rowH[data.row.index];
+      if (data.section === "body") data.cell.styles.minCellHeight = rowH[data.row.index];
     },
     didDrawCell: (data: any) => {
       const col = data.column.index;
@@ -341,7 +314,7 @@ export async function generateTeacherReport(
         return;
       }
       if (data.section === "body") {
-        if (col === 5) {
+        if (columns[col].isQR) {
           const qr = qrByRow[data.row.index];
           if (qr) {
             const x = data.cell.x + (data.cell.width - QR_MM) / 2;
@@ -350,7 +323,7 @@ export async function generateTeacherReport(
           }
         } else {
           const img = cellImgs[data.row.index][col];
-          if (img) place(img, data.cell, align[col]);
+          if (img) place(img, data.cell, columns[col].align);
         }
       }
     },
@@ -363,46 +336,29 @@ export async function generateTeacherReport(
           doc.addImage(logo.dataUrl, "PNG", (pageWidth - w) / 2, 7, w, h);
         }
         const titleY = logo ? 31 : 14;
-        const t1 = renderText("รายงานการเข้าร่วมอบรมและพัฒนาตนเอง", {
+        const t1 = renderText(title, {
           fontMm: 5.4,
           weight: "bold",
           color: "#241c05",
           align: "center",
         });
         doc.addImage(t1.dataUrl, "PNG", (pageWidth - t1.wMm) / 2, titleY, t1.wMm, t1.hMm);
-        const t2 = renderText("โรงเรียนวัดบางขุด (อุ่นพิทยาคาร)", {
+        const t2 = renderText(SUBTITLE, {
           fontMm: 4.1,
           weight: "bold",
           color: "#3a3a3a",
           align: "center",
         });
-        doc.addImage(
-          t2.dataUrl,
-          "PNG",
-          (pageWidth - t2.wMm) / 2,
-          titleY + 7.5,
-          t2.wMm,
-          t2.hMm
-        );
-        const t3 = renderText(
-          `ชื่อครู: ${teacher}      จำนวน ${items.length} รายการ      รวม ${totalHours} ชั่วโมง`,
-          { fontMm: 3.5, color: "#222", align: "center" }
-        );
-        doc.addImage(
-          t3.dataUrl,
-          "PNG",
-          (pageWidth - t3.wMm) / 2,
-          titleY + 14.5,
-          t3.wMm,
-          t3.hMm
-        );
+        doc.addImage(t2.dataUrl, "PNG", (pageWidth - t2.wMm) / 2, titleY + 7.5, t2.wMm, t2.hMm);
+        const t3 = renderText(summaryLine, { fontMm: 3.5, color: "#222", align: "center" });
+        doc.addImage(t3.dataUrl, "PNG", (pageWidth - t3.wMm) / 2, titleY + 14.5, t3.wMm, t3.hMm);
       }
     },
   });
 
-  // ---------- บล็อกลงนาม (อยู่รวมกันเสมอ + เว้นระยะให้เซ็นได้) ----------
+  // ---------- บล็อกลงนาม ----------
   const blockHeight = 52;
-  let y = (doc as any).lastAutoTable.finalY + 22; // เว้นห่างจากตารางให้เซ็นได้
+  let y = (doc as any).lastAutoTable.finalY + 22;
   if (y + blockHeight > pageHeight - margin.bottom) {
     doc.addPage();
     drawChrome();
@@ -424,27 +380,127 @@ export async function generateTeacherReport(
     role.forEach((r, i) => centerLine(r, cx, y + 22 + i * 6.5));
   };
 
-  signBlock(leftX, reporter || teacher, ["ผู้รายงาน"]);
-  signBlock(rightX, DIRECTOR, [
-    "ผู้อำนวยการโรงเรียนวัดบางขุด",
-    "(อุ่นพิทยาคาร)",
-  ]);
+  signBlock(leftX, reporter, ["ผู้รายงาน"]);
+  signBlock(rightX, DIRECTOR, ["ผู้อำนวยการโรงเรียนวัดบางขุด", "(อุ่นพิทยาคาร)"]);
 
-  // ---------- เลขหน้า มุมบนขวา (คำนวณจริง 1/2, 2/2) ----------
+  // ---------- เลขหน้า ----------
   const total = doc.getNumberOfPages();
   for (let i = 1; i <= total; i++) {
     doc.setPage(i);
     const pn = renderText(`หน้า ${i}/${total}`, { fontMm: 2.9, color: "#5b5b5b" });
-    doc.addImage(
-      pn.dataUrl,
-      "PNG",
-      pageWidth - margin.right - pn.wMm,
-      6,
-      pn.wMm,
-      pn.hMm
-    );
+    doc.addImage(pn.dataUrl, "PNG", pageWidth - margin.right - pn.wMm, 6, pn.wMm, pn.hMm);
   }
 
+  doc.save(opts.fileName);
+}
+
+const noCol: Column = {
+  header: "ลำดับที่",
+  width: 14,
+  align: "center",
+  value: (_it, i) => String(i + 1),
+};
+const qrCol: Column = { header: "หลักฐาน", width: 22, align: "center", isQR: true };
+
+// รายงานเกียรติบัตรครู: mode 'training' (อบรม) | 'award' (รางวัล)
+export async function generateTeacherReport(
+  teacher: string,
+  reporter: string,
+  items: ReportItem[],
+  mode: "training" | "award" = "training"
+) {
   const safe = teacher.replace(/[\\/:*?"<>|]/g, "_");
-  doc.save(`รายงานอบรม-${safe}.pdf`);
+  const totalHours = items.reduce((s, it) => s + (it.hours || 0), 0);
+
+  if (mode === "award") {
+    await buildReport({
+      title: "รายงานเกียรติบัตร/รางวัลของครู",
+      summaryLine: `ชื่อครู: ${teacher}      จำนวน ${items.length} รายการ`,
+      reporter,
+      items,
+      fileName: `รายงานรางวัล-${safe}.pdf`,
+      columns: [
+        noCol,
+        { header: "ชื่อเกียรติบัตร/รางวัล", width: 82, align: "left", value: (it) => it.title },
+        {
+          header: "วัน/เดือน/ปี\nที่ได้รับ",
+          width: 28,
+          align: "center",
+          value: (it) => thaiDate(it.event_date),
+        },
+        {
+          header: "หน่วยงานที่มอบ",
+          width: 44,
+          align: "left",
+          value: (it) => it.organizer || "-",
+        },
+        qrCol,
+      ],
+    });
+    return;
+  }
+
+  await buildReport({
+    title: "รายงานการเข้าร่วมอบรมและพัฒนาตนเอง",
+    summaryLine: `ชื่อครู: ${teacher}      จำนวน ${items.length} รายการ      รวม ${totalHours} ชั่วโมง`,
+    reporter,
+    items,
+    fileName: `รายงานอบรม-${safe}.pdf`,
+    columns: [
+      noCol,
+      {
+        header: "ชื่อหลักสูตร/โครงการ/กิจกรรม",
+        width: 60,
+        align: "left",
+        value: (it) => it.title,
+      },
+      {
+        header: "วัน/เดือน/ปี\nที่เข้าร่วมกิจกรรม",
+        width: 26,
+        align: "center",
+        value: (it) => thaiDate(it.event_date),
+      },
+      {
+        header: "หน่วยงานที่จัดอบรม",
+        width: 46,
+        align: "left",
+        value: (it) => it.organizer || "-",
+      },
+      {
+        header: "จำนวนชั่วโมง\nการอบรม",
+        width: 18,
+        align: "center",
+        value: (it) => (it.hours != null ? `${it.hours} ชั่วโมง` : "-"),
+      },
+      qrCol,
+    ],
+  });
+}
+
+// รายงานเกียรติบัตรของโรงเรียน
+export async function generateSchoolReport(reporter: string, items: ReportItem[]) {
+  await buildReport({
+    title: "รายงานเกียรติบัตรของโรงเรียน",
+    summaryLine: `จำนวน ${items.length} รายการ`,
+    reporter,
+    items,
+    fileName: `รายงานเกียรติบัตรโรงเรียน.pdf`,
+    columns: [
+      noCol,
+      { header: "ชื่อเกียรติบัตร", width: 82, align: "left", value: (it) => it.title },
+      {
+        header: "วัน/เดือน/ปี\nที่ออก",
+        width: 28,
+        align: "center",
+        value: (it) => thaiDate(it.issue_date),
+      },
+      {
+        header: "หน่วยงานที่ออกเกียรติบัตร",
+        width: 44,
+        align: "left",
+        value: (it) => it.issuer || "-",
+      },
+      qrCol,
+    ],
+  });
 }

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { TEACHERS } from "@/lib/teachers";
 import SiteHeader from "@/app/_components/SiteHeader";
 
+type Category = "training" | "award";
+
 type Certificate = {
   id: string;
   teacher: string;
@@ -16,7 +18,20 @@ type Certificate = {
   created_at: string;
 };
 
-// วันที่แบบสั้น เช่น "18 มิ.ย. 68" (พ.ศ.)
+// ข้อความตามโหมด
+const LABELS: Record<Category, { title: string; date: string; org: string }> = {
+  training: {
+    title: "ชื่อหลักสูตร / โครงการ / กิจกรรม",
+    date: "วัน/เดือน/ปี ที่เข้าร่วมกิจกรรม",
+    org: "หน่วยงานที่จัดอบรม",
+  },
+  award: {
+    title: "ชื่อเกียรติบัตร / รางวัล",
+    date: "วัน/เดือน/ปี ที่ได้รับ",
+    org: "หน่วยงานที่มอบ",
+  },
+};
+
 function formatEventDate(iso: string | null) {
   if (!iso) return "-";
   try {
@@ -31,6 +46,8 @@ function formatEventDate(iso: string | null) {
 }
 
 export default function Home() {
+  const [category, setCategory] = useState<Category>("training");
+
   const [teacher, setTeacher] = useState("");
   const [title, setTitle] = useState("");
   const [eventDate, setEventDate] = useState("");
@@ -49,13 +66,15 @@ export default function Home() {
   const [reporting, setReporting] = useState(false);
   const [reporter, setReporter] = useState("");
 
-  const loadList = useCallback(async (t: string) => {
+  const isTraining = category === "training";
+  const L = LABELS[category];
+
+  const loadList = useCallback(async (t: string, cat: Category) => {
     setLoading(true);
     try {
-      const url = t
-        ? `/api/certificates?teacher=${encodeURIComponent(t)}`
-        : "/api/certificates";
-      const res = await fetch(url);
+      const res = await fetch(
+        `/api/certificates?teacher=${encodeURIComponent(t)}&category=${cat}`
+      );
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "โหลดข้อมูลไม่สำเร็จ");
       setItems(json.data || []);
@@ -70,22 +89,18 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    // ยังไม่โหลดจนกว่าจะเลือกครู
     if (!filterTeacher) {
       setItems([]);
       return;
     }
-    setReporter(filterTeacher); // ผู้รายงาน default = ครูที่เลือก (เปลี่ยนได้)
-    loadList(filterTeacher);
-  }, [filterTeacher, loadList]);
+    setReporter(filterTeacher);
+    loadList(filterTeacher, category);
+  }, [filterTeacher, category, loadList]);
 
   const totalHours = useMemo(
     () => items.reduce((sum, c) => sum + (c.hours || 0), 0),
     [items]
   );
-
-  // เมื่อดูทั้งหมด ให้แสดงคอลัมน์ชื่อครูเพิ่ม
-  const showTeacherColumn = !filterTeacher;
 
   async function handleUpload(e: React.FormEvent) {
     e.preventDefault();
@@ -102,7 +117,8 @@ export default function Home() {
       fd.append("title", title.trim());
       fd.append("event_date", eventDate);
       fd.append("organizer", organizer.trim());
-      fd.append("hours", hours);
+      fd.append("hours", isTraining ? hours : "");
+      fd.append("category", category);
       fd.append("file", file);
 
       const res = await fetch("/api/certificates", { method: "POST", body: fd });
@@ -120,9 +136,8 @@ export default function Home() {
       const fileInput = document.getElementById("file-input") as HTMLInputElement | null;
       if (fileInput) fileInput.value = "";
 
-      // หลังอัปโหลด ให้แสดงรายการของครูคนที่เพิ่งอัป
       if (filterTeacher === teacher) {
-        loadList(teacher);
+        loadList(teacher, category);
       } else {
         setFilterTeacher(teacher);
       }
@@ -142,7 +157,12 @@ export default function Home() {
     setMessage(null);
     try {
       const { generateTeacherReport } = await import("@/app/_lib/report");
-      await generateTeacherReport(filterTeacher, reporter || filterTeacher, items);
+      await generateTeacherReport(
+        filterTeacher,
+        reporter || filterTeacher,
+        items,
+        category
+      );
     } catch (err) {
       setMessage({
         type: "error",
@@ -155,7 +175,7 @@ export default function Home() {
 
   async function handleDelete(id: string) {
     const pwd = prompt("กรุณาใส่รหัสผ่านเพื่อลบเกียรติบัตร");
-    if (pwd === null) return; // กดยกเลิก
+    if (pwd === null) return;
     try {
       const res = await fetch(`/api/certificates?id=${id}`, {
         method: "DELETE",
@@ -171,8 +191,6 @@ export default function Home() {
       });
     }
   }
-
-  const colCount = showTeacherColumn ? 7 : 6;
 
   return (
     <div className="container">
@@ -198,18 +216,35 @@ export default function Home() {
 
       <SiteHeader />
 
+      <div className="mode-switch-wrap">
+        <div className="nav-tabs">
+          <button
+            className={`nav-tab ${isTraining ? "active" : ""}`}
+            onClick={() => setCategory("training")}
+          >
+            อบรมและพัฒนาตนเอง
+          </button>
+          <button
+            className={`nav-tab ${!isTraining ? "active" : ""}`}
+            onClick={() => setCategory("award")}
+          >
+            รางวัลของครู
+          </button>
+        </div>
+      </div>
+
       {message && <div className={`alert ${message.type}`}>{message.text}</div>}
 
       <section className="card">
-        <h2>อัปโหลดเกียรติบัตร</h2>
+        <h2>
+          {isTraining
+            ? "อัปโหลดเกียรติบัตรอบรม/พัฒนาตนเอง"
+            : "อัปโหลดเกียรติบัตร/รางวัลของครู"}
+        </h2>
         <form onSubmit={handleUpload}>
           <div className="field">
             <label htmlFor="teacher">ชื่อครู</label>
-            <select
-              id="teacher"
-              value={teacher}
-              onChange={(e) => setTeacher(e.target.value)}
-            >
+            <select id="teacher" value={teacher} onChange={(e) => setTeacher(e.target.value)}>
               <option value="">— เลือกชื่อครู —</option>
               {TEACHERS.map((t) => (
                 <option key={t} value={t}>
@@ -220,18 +255,22 @@ export default function Home() {
           </div>
 
           <div className="field">
-            <label htmlFor="title">ชื่อหลักสูตร / โครงการ / กิจกรรม</label>
+            <label htmlFor="title">{L.title}</label>
             <input
               id="title"
               type="text"
-              placeholder="เช่น โครงการบ้านนักวิทยาศาสตร์น้อย"
+              placeholder={
+                isTraining
+                  ? "เช่น โครงการบ้านนักวิทยาศาสตร์น้อย"
+                  : "เช่น ครูดีเด่น ประจำปี 2569"
+              }
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
           </div>
 
           <div className="field">
-            <label htmlFor="event_date">วัน/เดือน/ปี ที่เข้าร่วมกิจกรรม</label>
+            <label htmlFor="event_date">{L.date}</label>
             <input
               id="event_date"
               type="date"
@@ -241,28 +280,34 @@ export default function Home() {
           </div>
 
           <div className="field">
-            <label htmlFor="organizer">หน่วยงานที่จัดอบรม</label>
+            <label htmlFor="organizer">{L.org}</label>
             <input
               id="organizer"
               type="text"
-              placeholder="เช่น สำนักงานเขตพื้นที่การศึกษาประถมศึกษาสมุทรสาคร"
+              placeholder={
+                isTraining
+                  ? "เช่น สำนักงานเขตพื้นที่การศึกษาประถมศึกษาสมุทรสาคร"
+                  : "เช่น สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน"
+              }
               value={organizer}
               onChange={(e) => setOrganizer(e.target.value)}
             />
           </div>
 
-          <div className="field">
-            <label htmlFor="hours">จำนวนชั่วโมงการอบรม</label>
-            <input
-              id="hours"
-              type="number"
-              min="0"
-              step="0.5"
-              placeholder="เช่น 6"
-              value={hours}
-              onChange={(e) => setHours(e.target.value)}
-            />
-          </div>
+          {isTraining && (
+            <div className="field">
+              <label htmlFor="hours">จำนวนชั่วโมงการอบรม</label>
+              <input
+                id="hours"
+                type="number"
+                min="0"
+                step="0.5"
+                placeholder="เช่น 6"
+                value={hours}
+                onChange={(e) => setHours(e.target.value)}
+              />
+            </div>
+          )}
 
           <div className="field">
             <label htmlFor="file-input">ไฟล์รูปภาพ (JPG หรือ PNG เท่านั้น — ไม่เกิน 10 MB)</label>
@@ -281,7 +326,11 @@ export default function Home() {
       </section>
 
       <section className="card">
-        <h2>ทะเบียนเกียรติบัตร</h2>
+        <h2>
+          {isTraining
+            ? "ทะเบียนเกียรติบัตรอบรม/พัฒนาตนเอง"
+            : "ทะเบียนเกียรติบัตร/รางวัลของครู"}
+        </h2>
 
         <div className="toolbar">
           <div className="field">
@@ -312,12 +361,14 @@ export default function Home() {
                   {items.length} <small>รายการ</small>
                 </div>
               </div>
-              <div className="stat">
-                <div className="label">รวมจำนวนชั่วโมงการอบรม</div>
-                <div className="value">
-                  {totalHours.toLocaleString("th-TH")} <small>ชั่วโมง</small>
+              {isTraining && (
+                <div className="stat">
+                  <div className="label">รวมจำนวนชั่วโมงการอบรม</div>
+                  <div className="value">
+                    {totalHours.toLocaleString("th-TH")} <small>ชั่วโมง</small>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {items.length > 0 && (
@@ -343,64 +394,75 @@ export default function Home() {
             )}
 
             {loading ? (
-          <p className="empty">กำลังโหลด...</p>
-        ) : items.length === 0 ? (
-          <p className="empty">ยังไม่มีเกียรติบัตร</p>
-        ) : (
-          <div className="table-wrap">
-            <table className="cert-table">
-              <thead>
-                <tr>
-                  <th className="col-no">ลำดับ{"\n"}ที่</th>
-                  {showTeacherColumn && <th>ชื่อครู</th>}
-                  <th>ชื่อหลักสูตร/โครงการ/{"\n"}กิจกรรม</th>
-                  <th>วัน/เดือน/ปี{"\n"}ที่เข้าร่วมกิจกรรม</th>
-                  <th>หน่วยงานที่จัดอบรม</th>
-                  <th>จำนวนชั่วโมง{"\n"}การอบรม</th>
-                  <th>หลักฐาน</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((c, i) => (
-                  <tr key={c.id}>
-                    <td className="col-no">{i + 1}</td>
-                    {showTeacherColumn && <td>{c.teacher}</td>}
-                    <td>{c.title}</td>
-                    <td className="col-center">{formatEventDate(c.event_date)}</td>
-                    <td>{c.organizer || "-"}</td>
-                    <td className="col-hours">
-                      {c.hours != null ? `${c.hours} ชั่วโมง` : "-"}
-                    </td>
-                    <td className="col-evidence">
-                      <a
-                        className="thumb-link"
-                        href={c.file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="เปิดดูเกียรติบัตร"
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={c.file_url} alt={c.title} />
-                      </a>
-                      <br />
-                      <button className="del-link" onClick={() => handleDelete(c.id)}>
-                        ลบ
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="tfoot-row">
-                  <td colSpan={colCount - 2} style={{ textAlign: "right" }}>
-                    รวมจำนวนชั่วโมงการอบรมทั้งหมด
-                  </td>
-                  <td className="col-hours">{totalHours.toLocaleString("th-TH")} ชั่วโมง</td>
-                  <td></td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+              <p className="empty">กำลังโหลด...</p>
+            ) : items.length === 0 ? (
+              <p className="empty">ยังไม่มีเกียรติบัตร</p>
+            ) : (
+              <div className="table-wrap">
+                <table className="cert-table">
+                  <thead>
+                    <tr>
+                      <th className="col-no">ลำดับ{"\n"}ที่</th>
+                      <th>
+                        {isTraining
+                          ? "ชื่อหลักสูตร/โครงการ/กิจกรรม"
+                          : "ชื่อเกียรติบัตร/รางวัล"}
+                      </th>
+                      <th>
+                        วัน/เดือน/ปี{"\n"}
+                        {isTraining ? "ที่เข้าร่วมกิจกรรม" : "ที่ได้รับ"}
+                      </th>
+                      <th>{isTraining ? "หน่วยงานที่จัดอบรม" : "หน่วยงานที่มอบ"}</th>
+                      {isTraining && <th>จำนวนชั่วโมง{"\n"}การอบรม</th>}
+                      <th>หลักฐาน</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((c, i) => (
+                      <tr key={c.id}>
+                        <td className="col-no">{i + 1}</td>
+                        <td>{c.title}</td>
+                        <td className="col-center">{formatEventDate(c.event_date)}</td>
+                        <td>{c.organizer || "-"}</td>
+                        {isTraining && (
+                          <td className="col-hours">
+                            {c.hours != null ? `${c.hours} ชั่วโมง` : "-"}
+                          </td>
+                        )}
+                        <td className="col-evidence">
+                          <a
+                            className="thumb-link"
+                            href={c.file_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="เปิดดูเกียรติบัตร"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={c.file_url} alt={c.title} />
+                          </a>
+                          <br />
+                          <button className="del-link" onClick={() => handleDelete(c.id)}>
+                            ลบ
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {isTraining && (
+                    <tfoot>
+                      <tr className="tfoot-row">
+                        <td colSpan={4} style={{ textAlign: "right" }}>
+                          รวมจำนวนชั่วโมงการอบรมทั้งหมด
+                        </td>
+                        <td className="col-hours">
+                          {totalHours.toLocaleString("th-TH")} ชั่วโมง
+                        </td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
             )}
           </>
         )}

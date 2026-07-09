@@ -9,6 +9,7 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = getServiceClient();
     const teacher = req.nextUrl.searchParams.get("teacher");
+    const category = req.nextUrl.searchParams.get("category");
 
     let query = supabase
       .from("certificates")
@@ -18,6 +19,7 @@ export async function GET(req: NextRequest) {
       .order("created_at", { ascending: true });
 
     if (teacher) query = query.eq("teacher", teacher);
+    query = query.eq("category", category === "award" ? "award" : "training");
 
     const { data, error } = await query;
     if (error) throw error;
@@ -40,6 +42,7 @@ export async function POST(req: NextRequest) {
     const eventDate = String(form.get("event_date") || "").trim();
     const organizer = String(form.get("organizer") || "").trim();
     const hoursRaw = String(form.get("hours") || "").trim();
+    const category = String(form.get("category") || "training") === "award" ? "award" : "training";
     const file = form.get("file") as File | null;
 
     if (!teacher || !TEACHERS.includes(teacher)) {
@@ -100,7 +103,8 @@ export async function POST(req: NextRequest) {
         title,
         event_date: eventDate || null,
         organizer: organizer || null,
-        hours,
+        hours: category === "award" ? null : hours,
+        category,
         file_path: filePath,
         file_url: pub.publicUrl,
         file_type: file.type,

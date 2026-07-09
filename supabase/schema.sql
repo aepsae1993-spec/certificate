@@ -20,6 +20,8 @@ create table if not exists public.certificates (
 alter table public.certificates add column if not exists event_date date;
 alter table public.certificates add column if not exists organizer text;
 alter table public.certificates add column if not exists hours numeric;
+-- ประเภทเกียรติบัตรครู: 'training' = อบรมและพัฒนาตนเอง, 'award' = รางวัลของครู
+alter table public.certificates add column if not exists category text not null default 'training';
 
 create index if not exists certificates_teacher_idx on public.certificates (teacher);
 create index if not exists certificates_created_idx on public.certificates (created_at desc);
