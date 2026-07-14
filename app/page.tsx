@@ -51,6 +51,24 @@ function thisMonth() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+const THAI_MONTHS = [
+  "มกราคม",
+  "กุมภาพันธ์",
+  "มีนาคม",
+  "เมษายน",
+  "พฤษภาคม",
+  "มิถุนายน",
+  "กรกฎาคม",
+  "สิงหาคม",
+  "กันยายน",
+  "ตุลาคม",
+  "พฤศจิกายน",
+  "ธันวาคม",
+];
+
+// ปี ค.ศ. ย้อนหลัง 3 ปี ถึงล่วงหน้า 1 ปี (แสดงเป็น พ.ศ.)
+const YEAR_OPTIONS = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 3 + i);
+
 export default function Home() {
   const [category, setCategory] = useState<Category>("training");
 
@@ -452,12 +470,35 @@ export default function Home() {
             </div>
             <div className="field report-reporter">
               <label htmlFor="m-month">เดือน</label>
-              <input
+              <select
                 id="m-month"
-                type="month"
-                value={monthlyMonth}
-                onChange={(e) => setMonthlyMonth(e.target.value)}
-              />
+                value={monthlyMonth.split("-")[1]}
+                onChange={(e) =>
+                  setMonthlyMonth(`${monthlyMonth.split("-")[0]}-${e.target.value}`)
+                }
+              >
+                {THAI_MONTHS.map((name, idx) => (
+                  <option key={idx} value={String(idx + 1).padStart(2, "0")}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field report-reporter">
+              <label htmlFor="m-year">ปี (พ.ศ.)</label>
+              <select
+                id="m-year"
+                value={monthlyMonth.split("-")[0]}
+                onChange={(e) =>
+                  setMonthlyMonth(`${e.target.value}-${monthlyMonth.split("-")[1]}`)
+                }
+              >
+                {YEAR_OPTIONS.map((y) => (
+                  <option key={y} value={String(y)}>
+                    {y + 543}
+                  </option>
+                ))}
+              </select>
             </div>
             <button className="btn" onClick={handleMonthlyReport} disabled={monthlyReporting}>
               {monthlyReporting ? "กำลังสร้าง..." : "📄 รายงานรายเดือน"}
