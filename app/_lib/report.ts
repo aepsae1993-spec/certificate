@@ -544,7 +544,7 @@ export async function generateTeacherReport(
         align: "center",
         value: (it) => (it.hours != null ? `${it.hours} ชั่วโมง` : "-"),
       },
-      qrCol,
+      { header: "เกียรติบัตร", width: 22, align: "center", isQR: true, qrValue: (it) => it.file_url },
       {
         header: "รายงาน\nการอบรม",
         width: 22,
@@ -598,7 +598,7 @@ export async function generateMonthlyReport(
         align: "center",
         value: (it) => (it.hours != null ? `${it.hours} ชั่วโมง` : "-"),
       },
-      { header: "หลักฐาน", width: 27, align: "center", isQR: true, qrValue: (it) => it.file_url },
+      { header: "เกียรติบัตร", width: 27, align: "center", isQR: true, qrValue: (it) => it.file_url },
       {
         header: "รายงาน\nการอบรม",
         width: 27,
