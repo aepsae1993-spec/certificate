@@ -10,18 +10,29 @@ create table if not exists public.certificates (
   event_date date,            -- วัน/เดือน/ปี ที่เข้าร่วมกิจกรรม
   organizer text,             -- หน่วยงานที่จัดอบรม
   hours numeric,              -- จำนวนชั่วโมงการอบรม
-  file_path text not null,
-  file_url text not null,
+  file_path text,             -- ไฟล์เกียรติบัตร (ไม่บังคับ)
+  file_url text,
   file_type text,
+  report_file_path text,      -- ไฟล์รายงานการอบรม (ไม่บังคับ)
+  report_file_url text,
+  report_file_type text,
+  category text not null default 'training',
   created_at timestamptz not null default now()
 );
 
--- ถ้าตารางมีอยู่แล้ว (สร้างไปก่อนหน้า) ให้เพิ่มคอลัมน์ใหม่
+-- ถ้าตารางมีอยู่แล้ว (สร้างไปก่อนหน้า) ให้เพิ่ม/แก้คอลัมน์
 alter table public.certificates add column if not exists event_date date;
 alter table public.certificates add column if not exists organizer text;
 alter table public.certificates add column if not exists hours numeric;
 -- ประเภทเกียรติบัตรครู: 'training' = อบรมและพัฒนาตนเอง, 'award' = รางวัลของครู
 alter table public.certificates add column if not exists category text not null default 'training';
+-- ไฟล์เกียรติบัตรเป็นตัวเลือก (ไม่บังคับ)
+alter table public.certificates alter column file_path drop not null;
+alter table public.certificates alter column file_url drop not null;
+-- ไฟล์รายงานการอบรม (แนบเพิ่ม ไม่บังคับ)
+alter table public.certificates add column if not exists report_file_path text;
+alter table public.certificates add column if not exists report_file_url text;
+alter table public.certificates add column if not exists report_file_type text;
 
 create index if not exists certificates_teacher_idx on public.certificates (teacher);
 create index if not exists certificates_created_idx on public.certificates (created_at desc);

@@ -17,7 +17,8 @@ export type ReportItem = {
   organizer?: string | null;
   issuer?: string | null;
   hours?: number | null;
-  file_url: string;
+  file_url?: string | null;
+  report_file_url?: string | null;
 };
 
 const DIRECTOR = "นายณรงค์ เนตรลา"; // ผู้อำนวยการ (คงที่)
@@ -36,6 +37,7 @@ type Column = {
   align: "left" | "center";
   value?: (it: ReportItem, index: number) => string;
   isQR?: boolean;
+  qrValue?: (it: ReportItem) => string | null | undefined; // URL สำหรับทำ QR (ว่าง = แสดง "-")
 };
 
 let measureCtx: CanvasRenderingContext2D | null = null;
@@ -233,8 +235,10 @@ async function buildReport(opts: {
   columns: Column[];
   items: ReportItem[];
   fileName: string;
+  orientation?: "portrait" | "landscape";
 }) {
   const { title, summaryLine, reporter, columns, items } = opts;
+  const orientation = opts.orientation || "portrait";
   await ensureFont();
 
   // โลโก้ (จาก Supabase; ถ้าไม่ได้ใช้ไฟล์ในเครื่อง)
@@ -252,18 +256,22 @@ async function buildReport(opts: {
     logo = null;
   }
 
-  const qrColIndex = columns.findIndex((c) => c.isQR);
+  const hasQR = columns.some((c) => c.isQR);
 
-  // QR ของแต่ละแถว
-  const qrByRow: string[] = await Promise.all(
-    items.map((it) =>
-      it.file_url
-        ? QRCode.toDataURL(it.file_url, { margin: 0, width: 240 })
-        : Promise.resolve("")
-    )
-  );
+  // QR ของแต่ละคอลัมน์ที่เป็น QR (แต่ละแถว) — ว่างถ้าไม่มี URL
+  const qrByCol: Record<number, string[]> = {};
+  for (let ci = 0; ci < columns.length; ci++) {
+    const c = columns[ci];
+    if (!c.isQR) continue;
+    qrByCol[ci] = await Promise.all(
+      items.map((it) => {
+        const url = c.qrValue ? c.qrValue(it) : undefined;
+        return url ? QRCode.toDataURL(url, { margin: 0, width: 240 }) : Promise.resolve("");
+      })
+    );
+  }
 
-  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = { top: 18, left: 12, right: 12, bottom: 16 };
@@ -299,8 +307,11 @@ async function buildReport(opts: {
     cellImgs.push(row);
     const heights = row.filter(Boolean).map((c) => (c as TextImg).hMm);
     const textH = heights.length ? Math.max(...heights) : 0;
-    rowH.push(Math.max(textH, qrColIndex >= 0 ? QR_MM : 0) + 3);
+    rowH.push(Math.max(textH, hasQR ? QR_MM : 0) + 3);
   });
+
+  // รูป "-" สำหรับช่อง QR ที่ไม่มีไฟล์
+  const dashImg = renderText("-", { fontMm: 3.2, align: "center", color: "#555" });
 
   // ข้อความหัว/ท้ายหน้า
   const now = new Date();
@@ -360,11 +371,13 @@ async function buildReport(opts: {
       }
       if (data.section === "body") {
         if (columns[col].isQR) {
-          const qr = qrByRow[data.row.index];
+          const qr = qrByCol[col]?.[data.row.index];
           if (qr) {
             const x = data.cell.x + (data.cell.width - QR_MM) / 2;
             const y = data.cell.y + (data.cell.height - QR_MM) / 2;
             doc.addImage(qr, "PNG", x, y, QR_MM, QR_MM);
+          } else {
+            place(dashImg, data.cell, "center"); // ไม่มีไฟล์ → แสดง "-"
           }
         } else {
           const img = cellImgs[data.row.index][col];
@@ -445,7 +458,21 @@ const noCol: Column = {
   align: "center",
   value: (_it, i) => String(i + 1),
 };
-const qrCol: Column = { header: "หลักฐาน", width: 22, align: "center", isQR: true };
+const qrCol: Column = {
+  header: "หลักฐาน",
+  width: 22,
+  align: "center",
+  isQR: true,
+  qrValue: (it) => it.file_url,
+};
+
+function thaiMonthLabel(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString("th-TH", {
+    month: "long",
+    year: "numeric",
+  });
+}
 
 // รายงานเกียรติบัตรครู: mode 'training' (อบรม) | 'award' (รางวัล)
 export async function generateTeacherReport(
@@ -495,19 +522,73 @@ export async function generateTeacherReport(
       noCol,
       {
         header: "ชื่อหลักสูตร/โครงการ/กิจกรรม",
-        width: 60,
+        width: 48,
         align: "left",
         value: (it) => it.title,
       },
       {
         header: "วัน/เดือน/ปี\nที่เข้าร่วมกิจกรรม",
-        width: 26,
+        width: 22,
         align: "center",
         value: (it) => thaiDate(it.event_date),
       },
       {
         header: "หน่วยงานที่จัดอบรม",
-        width: 46,
+        width: 42,
+        align: "left",
+        value: (it) => it.organizer || "-",
+      },
+      {
+        header: "จำนวนชั่วโมง\nการอบรม",
+        width: 16,
+        align: "center",
+        value: (it) => (it.hours != null ? `${it.hours} ชั่วโมง` : "-"),
+      },
+      qrCol,
+      {
+        header: "รายงาน\nการอบรม",
+        width: 22,
+        align: "center",
+        isQR: true,
+        qrValue: (it) => it.report_file_url,
+      },
+    ],
+  });
+}
+
+// รายงานการอบรมรายเดือน (ทั้งโรงเรียน) — แนวนอน มีคอลัมน์ชื่อครู
+export async function generateMonthlyReport(
+  reporter: string,
+  month: string,
+  items: ReportItem[]
+) {
+  const label = thaiMonthLabel(month);
+  const totalHours = items.reduce((s, it) => s + (it.hours || 0), 0);
+  await buildReport({
+    title: `รายงานการเข้าร่วมอบรมและพัฒนาตนเอง ประจำเดือน${label}`,
+    summaryLine: `จำนวน ${items.length} รายการ      รวม ${totalHours} ชั่วโมง`,
+    reporter,
+    items,
+    orientation: "landscape",
+    fileName: `รายงานอบรมรายเดือน-${month}.pdf`,
+    columns: [
+      { header: "ลำดับที่", width: 14, align: "center", value: (_it, i) => String(i + 1) },
+      { header: "ชื่อครู", width: 36, align: "left", value: (it) => it.teacher || "-" },
+      {
+        header: "ชื่อหลักสูตร/โครงการ/กิจกรรม",
+        width: 68,
+        align: "left",
+        value: (it) => it.title,
+      },
+      {
+        header: "วัน/เดือน/ปี\nที่เข้าร่วม",
+        width: 24,
+        align: "center",
+        value: (it) => thaiDate(it.event_date),
+      },
+      {
+        header: "หน่วยงานที่จัดอบรม",
+        width: 59,
         align: "left",
         value: (it) => it.organizer || "-",
       },
@@ -517,7 +598,14 @@ export async function generateTeacherReport(
         align: "center",
         value: (it) => (it.hours != null ? `${it.hours} ชั่วโมง` : "-"),
       },
-      qrCol,
+      { header: "หลักฐาน", width: 27, align: "center", isQR: true, qrValue: (it) => it.file_url },
+      {
+        header: "รายงาน\nการอบรม",
+        width: 27,
+        align: "center",
+        isQR: true,
+        qrValue: (it) => it.report_file_url,
+      },
     ],
   });
 }
