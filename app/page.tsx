@@ -630,16 +630,31 @@ export default function Home() {
                           )}
                         </td>
                         {isTraining && (
-                          <td className="col-center">
+                          <td className="col-evidence">
                             {c.report_file_url ? (
-                              <a
-                                className="link-btn"
-                                href={c.report_file_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                              >
-                                เปิด
-                              </a>
+                              c.report_file_type?.startsWith("image/") ? (
+                                <a
+                                  className="thumb-link"
+                                  href={c.report_file_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="เปิดรายงานการอบรม"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={c.report_file_url} alt="รายงานการอบรม" />
+                                </a>
+                              ) : (
+                                <a
+                                  className="thumb-link thumb-file"
+                                  href={c.report_file_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="เปิดรายงานการอบรม (PDF)"
+                                >
+                                  <span className="thumb-file-icon">📄</span>
+                                  <span className="thumb-file-label">PDF</span>
+                                </a>
+                              )
                             ) : (
                               <span className="muted-dash">-</span>
                             )}

@@ -440,6 +440,31 @@ table.cert-table tbody tr:last-child td {
   display: block;
 }
 
+/* กล่องไอคอนสำหรับไฟล์ PDF (แทนรูปตัวอย่าง) */
+.thumb-file {
+  width: 96px;
+  height: 68px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  line-height: 1.1;
+  background: linear-gradient(180deg, rgba(212, 175, 55, 0.1), rgba(212, 175, 55, 0.02));
+  text-decoration: none;
+}
+
+.thumb-file-icon {
+  font-size: 1.7rem;
+}
+
+.thumb-file-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--gold-light);
+  letter-spacing: 1px;
+}
+
 .del-link {
   display: inline-block;
   margin-top: 8px;
